@@ -134,7 +134,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-
 }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.weights { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+.weights { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 14px; }
 .weight-item .wv { font-variant-numeric: tabular-nums; font-weight: 600; }
 .field-row { margin-bottom: 14px; }
 button {
@@ -323,16 +323,18 @@ button:hover { filter: brightness(0.97); }
 
 var STORE_KEY = "jiajiao-filter-v1";
 
+var SETTINGS_VERSION = 2;
+
 var DEFAULT_SETTINGS = {
-  weights: { edu: 30, exp: 25, subj: 15, comm: 20, price: 10 },
-  subjects: "",
-  budgetMin: "",
-  budgetMax: "",
+  weights: { local: 30, subj: 20, comm: 15, edu: 15, exp: 10, price: 10 },
+  subjects: "数学 物理 高中",
+  budgetMin: 130,
+  budgetMax: 150,
   redFlags: "中介费 押金 定金 先付款 刷单",
-  bonusWords: ""
+  bonusWords: "三角函数 向量 立体几何 机械能 电学"
 };
 
-var WEIGHT_LABELS = { edu: "学历背景", exp: "教学经验", subj: "科目匹配", comm: "沟通表现", price: "价格匹配" };
+var WEIGHT_LABELS = { local: "湖南·应届", subj: "科目匹配", comm: "沟通表现", edu: "学历成绩", exp: "教学经验", price: "价格匹配" };
 
 var STATUS_LABELS = { pending: "待筛", pass: "通过", hold: "待定", reject: "淘汰" };
 
@@ -366,13 +368,18 @@ function load() {
     var raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       var s = JSON.parse(raw);
+      if ((s.settingsVersion || 1) < SETTINGS_VERSION) {
+        // 维度有变化：套用新的默认标准，候选人数据原样保留
+        s.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        s.settingsVersion = SETTINGS_VERSION;
+      }
       s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
       s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
       s.candidates = s.candidates || [];
       return s;
     }
   } catch (e) { /* 损坏则重置 */ }
-  return { settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), candidates: [] };
+  return { settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), candidates: [], settingsVersion: SETTINGS_VERSION };
 }
 
 function save() {
@@ -420,7 +427,56 @@ function scoreEdu(resume, all, ev) {
     score += 8; ev.push({ dim: "edu", tag: "硕士/研究生 +8", snip: snippet(all, m.index, m[0].length), neg: false });
   }
   if (/师范/.test(all) && tier !== "清北") { score += 6; ev.push({ dim: "edu", tag: "师范背景 +6", snip: snippet(all, all.indexOf("师范"), 2), neg: false }); }
+  // 应届生看高考成绩比看大学履历更准
+  var gk = all.match(/高考\D{0,8}([4-7]\d{2})\s*分/);
+  if (gk) {
+    var gs = parseInt(gk[1], 10);
+    var gScore = gs >= 650 ? 100 : gs >= 620 ? 90 : gs >= 600 ? 82 : gs >= 550 ? 68 : gs >= 500 ? 55 : 45;
+    score = Math.max(score, gScore);
+    ev.push({ dim: "edu", tag: "高考" + gs + "分", snip: snippet(all, gk.index, gk[0].length), neg: false });
+  }
+  var ms = all.match(/数学\D{0,4}(1[0-5]\d)\s*分/);
+  if (ms && parseInt(ms[1], 10) >= 120) {
+    var mAdd = parseInt(ms[1], 10) >= 130 ? 8 : 5;
+    score += mAdd;
+    ev.push({ dim: "edu", tag: "数学单科" + ms[1] + "分 +" + mAdd, snip: snippet(all, ms.index, ms[0].length), neg: false });
+  }
+  var ps = all.match(/物理\D{0,4}(100|9\d|8[5-9])\s*分/);
+  if (ps) {
+    score += 6;
+    ev.push({ dim: "edu", tag: "物理单科" + ps[1] + "分 +6", snip: snippet(all, ps.index, ps[0].length), neg: false });
+  }
   return { score: clamp(score, 0, 100), tier: tier };
+}
+
+function scoreLocal(all, ev) {
+  var score = 30, tags = [];
+  var hn = all.match(/(湖南\D{0,8}高考|高考\D{0,8}湖南|湖南考生|湖南参加|在湘高考)/);
+  if (hn) {
+    score += 35; tags.push("湖南高考");
+    ev.push({ dim: "local", tag: "湖南高考 +35", snip: snippet(all, hn.index, hn[0].length), neg: false });
+  } else {
+    var hn2 = all.match(/(湖南|长沙|长郡|雅礼|师大附中|长沙市一中|明德中学|周南中学|麓山国际|南雅中学|湘潭|株洲|岳阳|衡阳|常德|郴州|益阳|娄底|怀化|永州|邵阳|张家界|湘西)/);
+    if (hn2) {
+      score += 25; tags.push("湖南");
+      ev.push({ dim: "local", tag: "湖南本地 +25", snip: snippet(all, hn2.index, hn2[0].length), neg: false });
+    }
+  }
+  var fresh = all.match(/(刚(?:刚)?(?:参加)?(?:完)?高考|高考(?:刚)?(?:结束|完|出分)|今年高考|应届|准大一|大一新生|高三(?:刚)?毕业|高中(?:刚)?毕业|刚毕业|202[5-6]\s*届|202[5-6]\s*年高考)/);
+  if (fresh) {
+    score += 35; tags.push("应届");
+    ev.push({ dim: "local", tag: "刚高中毕业 +35", snip: snippet(all, fresh.index, fresh[0].length), neg: false });
+  } else {
+    var f2 = all.match(/大[一二]/);
+    if (f2) {
+      score += 15; tags.push("大一/大二");
+      ev.push({ dim: "local", tag: "大一/大二在读 +15", snip: snippet(all, f2.index, f2[0].length), neg: false });
+    }
+  }
+  if (score === 30) {
+    ev.push({ dim: "local", tag: "未提及湖南/应届", snip: "简历和聊天里没找到湖南高考经历或刚毕业的信息，建议在微信里确认", neg: true });
+  }
+  return { score: clamp(score, 0, 100), tags: tags };
 }
 
 function scoreExp(all, settings, ev) {
@@ -510,7 +566,8 @@ function scorePrice(all, settings, ev) {
 var POLITE = ["您好", "您", "请问", "谢谢", "麻烦", "不好意思", "感谢", "打扰"];
 var PROACTIVE = ["试讲", "试课", "免费试", "方便的时间", "什么时候方便", "我可以先", "提前备课", "备课",
   "了解一下孩子", "孩子的情况", "学习情况", "薄弱", "基础怎么样", "用什么教材", "教材", "课本",
-  "做个规划", "学习计划", "随时可以", "发给您", "反馈"];
+  "做个规划", "学习计划", "随时可以", "发给您", "反馈",
+  "耐心", "细心", "慢慢讲", "不着急", "鼓励", "讲题思路", "错题"];
 var NEGATIVE = ["涨价", "加价", "临时有事", "取消", "改时间", "迟到", "先交", "先付", "转账给我", "催一下"];
 
 function scoreComm(chat, ev) {
@@ -556,6 +613,7 @@ function evaluate(cand, settings) {
   var subj = scoreSubj(all, settings, ev);
   var comm = scoreComm(chat, ev);
   var price = scorePrice(all, settings, ev);
+  var local = scoreLocal(all, ev);
 
   var flags = [];
   var flagWords = splitWords(settings.redFlags);
@@ -565,7 +623,7 @@ function evaluate(cand, settings) {
     ev.push({ dim: "flag", tag: "红旗「" + fHits[i].word + "」", snip: snippet(all, fHits[i].idx, fHits[i].word.length), neg: true });
   }
 
-  var dims = { edu: edu.score, exp: exp.score, subj: subj.score, comm: comm.score, price: price.score };
+  var dims = { local: local.score, subj: subj.score, comm: comm.score, edu: edu.score, exp: exp.score, price: price.score };
   var w = settings.weights;
   var wSum = 0, total = 0;
   for (var k in dims) { wSum += (Number(w[k]) || 0); }
@@ -576,7 +634,7 @@ function evaluate(cand, settings) {
 
   return {
     total: total, dims: dims, evidence: ev, flags: flags,
-    tier: edu.tier, years: exp.years, rate: price.rate, matched: subj.matched
+    tier: edu.tier, years: exp.years, rate: price.rate, matched: subj.matched, localTags: local.tags
   };
 }
 
@@ -604,6 +662,7 @@ function renderStats(results) {
 
 function chipRow(r) {
   var chips = [];
+  for (var t = 0; t < r.localTags.length; t++) chips.push('<span class="chip tier">' + esc(r.localTags[t]) + "</span>");
   if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
   if (r.years) chips.push('<span class="chip">' + r.years + "年经验</span>");
   if (r.rate) chips.push('<span class="chip">' + r.rate + " 元/时</span>");
@@ -811,11 +870,11 @@ function bindActions() {
 
   $("exportCsv").addEventListener("click", function () {
     var results = compute();
-    var head = ["排名", "姓名", "总分", "状态", "院校层次", "经验年数", "报价(元/时)", "学历分", "经验分", "科目分", "沟通分", "价格分", "红旗", "备注"];
+    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "湖南应届分", "科目分", "沟通分", "学历分", "经验分", "价格分", "红旗", "备注"];
     var rows = results.map(function (r, i) {
       var c = r.cand;
-      return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.tier, r.years || "", r.rate || "",
-        r.dims.edu, r.dims.exp, r.dims.subj, r.dims.comm, r.dims.price,
+      return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
+        r.dims.local, r.dims.subj, r.dims.comm, r.dims.edu, r.dims.exp, r.dims.price,
         r.flags.join("、"), c.notes || ""];
     });
     var csv = "\uFEFF" + [head].concat(rows).map(function (row) {
@@ -848,19 +907,24 @@ function download(filename, content, mime) {
 
 var DEMO = [
   {
-    name: "示例·王老师",
-    resume: "北京师范大学数学系硕士研究生，5年家教经验，带过12名高中学生，多数提分30分以上，持有高中数学教师资格证。收费120元/小时。",
-    chat: "您好，看到您找高中数学家教。我可以先免费试讲一节，方便的时间您定。想先了解一下孩子的学习情况和薄弱环节，用什么教材？我会提前备课，每次课后给您发学习反馈。"
+    name: "示例·陈同学",
+    resume: "长沙长郡中学2026届毕业生，刚参加完湖南高考，总分646分，数学138分，物理95分，已被武汉大学录取。选科物化生，暑假在长沙，可教高中数学物理，140元/小时。",
+    chat: "您好！我今年刚高考完，对湖南的题型和考试节奏都很熟悉。想先了解一下妹妹数学和物理的薄弱环节？三角函数、立体几何和机械能守恒我都可以带，可以先免费试讲一次，我会提前备课，也比较有耐心，会带着她整理错题。"
   },
   {
-    name: "示例·李同学",
-    resume: "郑州大学本科在读，大二，数学专业，做过家教，辅导过初中生。时薪60元。",
-    chat: "你好，在吗？我可以教。时间都行，随便约。"
+    name: "示例·刘老师",
+    resume: "湖南师范大学数学系硕士，4年家教经验，带过8名高中学生，提分明显，有教师资格证。主教高中数学，可加物理。150元/小时。",
+    chat: "您好，请问孩子目前的学习情况怎么样？我可以周末上课，提前备课，课后给您反馈。"
   },
   {
-    name: "示例·张老师",
-    resume: "某培训机构资深教师，8年教学经验，专教高中数学物理，一对一提分显著。300元/小时，需先付半学期费用，另收中介费200元。",
-    chat: "您好，我经验很丰富。不过需要先交定金才能排课，另外如果路远可能要涨价。"
+    name: "示例·赵同学",
+    resume: "北京某高校大三在读，江苏高考，教过初中数学，时薪180元。",
+    chat: "在吗？可以教，时间都行。"
+  },
+  {
+    name: "示例·孙老师",
+    resume: "培训机构资深教师，8年教学经验，专教高中数学物理，一对一提分显著。收费280元/小时，需先付一学期费用，另收中介费200元。",
+    chat: "您好，我经验很丰富。不过需要先交定金才能排课，如果时间冲突可能要临时改时间。"
   }
 ];
 
