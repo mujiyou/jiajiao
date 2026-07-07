@@ -250,7 +250,7 @@ button.upl { font-size: 13px; padding: 5px 10px; }
 <div class="wrap">
   <header class="site">
     <h1>家教老师筛选器</h1>
-    <p class="sub">把每位应聘老师的简历和微信聊天记录粘贴进来，按你设定的标准自动打分排序，每一分都能看到依据。数据只保存在你自己的浏览器里，不会上传。</p>
+    <p class="sub">把每位应聘老师的简历粘贴或上传进来，按你设定的标准自动打分排序，每一分都能看到依据；耐心和人品由你看完微信聊天后打星评价。数据只保存在你自己的浏览器里，不会上传。</p>
   </header>
 
   <section class="stats" id="stats" aria-label="统计"></section>
@@ -285,32 +285,20 @@ button.upl { font-size: 13px; padding: 5px 10px; }
   </details>
 
   <section class="card">
-    <div class="card-head"><h2>添加候选人</h2><span class="hint">简历可粘贴文字或上传图片；聊天记录可上传截图，看完后人工打「耐心 / 印象」星</span></div>
+    <div class="card-head"><h2>添加候选人</h2><span class="hint">简历可粘贴文字或上传图片；耐心和人品在微信里看，回来给候选人打星</span></div>
     <div class="card-body">
       <div class="field-row">
-        <label class="f" for="cName">姓名 / 称呼</label>
-        <input type="text" id="cName" placeholder="例如：王老师、李同学">
+        <label class="f" for="cName">姓名 / 称呼（自动从简历里识别，认错了再手动改）</label>
+        <input type="text" id="cName" placeholder="粘贴简历后自动填写">
       </div>
-      <div class="grid2">
-        <div class="field-row">
-          <label class="f" for="cResume">简历 · 方式一：粘贴文字（能自动打分）</label>
-          <textarea id="cResume" placeholder="学校、学历、高考分数、家教经验、报价……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
-          <div class="btn-row" style="margin-top:8px">
-            <button type="button" class="upl" id="resumeImgBtn">方式二：上传简历图片</button>
-            <span class="hint">图片供人工查看，学校/分数等关键信息请尽量补成文字</span>
-          </div>
-          <div class="thumbs" id="resumeThumbs"></div>
+      <div class="field-row">
+        <label class="f" for="cResume">简历 · 方式一：粘贴文字（能自动打分）</label>
+        <textarea id="cResume" placeholder="学校、学历、高考分数、家教经验、报价……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
+        <div class="btn-row" style="margin-top:8px">
+          <button type="button" class="upl" id="resumeImgBtn">方式二：上传简历图片</button>
+          <span class="hint">图片供人工查看，学校/分数等关键信息请尽量补成文字</span>
         </div>
-        <div class="field-row">
-          <label class="f">微信聊天记录 · 上传截图（主要看耐心和人怎么样）</label>
-          <div class="btn-row">
-            <button type="button" class="upl" id="chatImgBtn">上传聊天截图</button>
-            <span class="hint">可多张，添加后在名单里点开该候选人打星</span>
-          </div>
-          <div class="thumbs" id="chatThumbs"></div>
-          <label class="f" for="cChat" style="margin-top:10px">也可以粘贴聊天文字（能自动分析，建议只粘老师发的消息）</label>
-          <textarea id="cChat" placeholder="老师在微信里发的消息……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
-        </div>
+        <div class="thumbs" id="resumeThumbs"></div>
       </div>
       <div class="btn-row">
         <button class="primary" id="addBtn">添加并打分</button>
@@ -349,11 +337,10 @@ button.upl { font-size: 13px; padding: 5px 10px; }
     <div id="candList"></div>
   </section>
 
-  <p class="footer-note">打分只是初筛参考——分数接近时，请以聊天截图里的耐心程度和试课表现为准。</p>
+  <p class="footer-note">打分只是初筛参考——分数接近时，请以微信聊天里的耐心程度和试课表现为准。</p>
 </div>
 
 <input type="file" id="resumeImgInput" accept="image/*" multiple hidden>
-<input type="file" id="chatImgInput" accept="image/*" multiple hidden>
 <input type="file" id="detailImgInput" accept="image/*" multiple hidden>
 <div id="lightbox" role="dialog" aria-label="查看大图"><img alt="放大的图片"></div>
 
@@ -375,7 +362,7 @@ var DEFAULT_SETTINGS = {
   bonusWords: "三角函数 向量 立体几何 机械能 电学"
 };
 
-var WEIGHT_LABELS = { local: "湖南·应届", subj: "科目匹配", comm: "沟通表现", edu: "学历成绩", exp: "教学经验", price: "价格匹配" };
+var WEIGHT_LABELS = { local: "湖南·应届", subj: "科目匹配", comm: "耐心·印象", edu: "学历成绩", exp: "教学经验", price: "价格匹配" };
 
 var STATUS_LABELS = { pending: "待筛", pass: "通过", hold: "待定", reject: "淘汰" };
 
@@ -417,7 +404,7 @@ function normalize(s) {
   s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
   s.candidates = (s.candidates || []).map(function (c) {
     return Object.assign({
-      resumeImgs: [], chatImgs: [], ratePatience: 0, rateImpression: 0
+      resumeImgs: [], ratePatience: 0, rateImpression: 0
     }, c);
   });
   return s;
@@ -563,7 +550,7 @@ function scoreLocal(all, ev) {
     }
   }
   if (score === 30) {
-    ev.push({ dim: "local", tag: "未提及湖南/应届", snip: "简历和聊天里没找到湖南高考经历或刚毕业的信息，建议在微信里确认", neg: true });
+    ev.push({ dim: "local", tag: "未提及湖南/应届", snip: "简历里没找到湖南高考经历或刚毕业的信息，建议在微信里确认", neg: true });
   }
   return { score: clamp(score, 0, 100), tags: tags };
 }
@@ -622,7 +609,7 @@ function scoreSubj(all, settings, ev) {
   for (var i = 0; i < hits.length; i++) {
     ev.push({ dim: "subj", tag: "匹配「" + hits[i].word + "」", snip: snippet(all, hits[i].idx, hits[i].word.length), neg: false });
   }
-  if (!hits.length) ev.push({ dim: "subj", tag: "未提及所需科目", snip: "简历和聊天里都没找到：" + words.join("、"), neg: true });
+  if (!hits.length) ev.push({ dim: "subj", tag: "未提及所需科目", snip: "简历里没找到：" + words.join("、"), neg: true });
   return { score: Math.round(100 * hits.length / words.length), matched: matched };
 }
 
@@ -652,15 +639,8 @@ function scorePrice(all, settings, ev) {
   return { score: s, rate: r.rate };
 }
 
-var POLITE = ["您好", "您", "请问", "谢谢", "麻烦", "不好意思", "感谢", "打扰"];
-var PROACTIVE = ["试讲", "试课", "免费试", "方便的时间", "什么时候方便", "我可以先", "提前备课", "备课",
-  "了解一下孩子", "孩子的情况", "学习情况", "薄弱", "基础怎么样", "用什么教材", "教材", "课本",
-  "做个规划", "学习计划", "随时可以", "发给您", "反馈",
-  "耐心", "细心", "慢慢讲", "不着急", "鼓励", "讲题思路", "错题"];
-var NEGATIVE = ["涨价", "加价", "临时有事", "取消", "改时间", "迟到", "先交", "先付", "转账给我", "催一下"];
-
-function scoreComm(chat, cand, ev) {
-  // 人工打星（看聊天截图后评的耐心/印象）优先于文字自动分析
+function scoreComm(cand, ev) {
+  // 完全由人工打星决定：看完和老师的微信聊天后评「耐心」和「印象」
   var stars = [];
   if (cand.ratePatience > 0) stars.push(cand.ratePatience);
   if (cand.rateImpression > 0) stars.push(cand.rateImpression);
@@ -668,55 +648,24 @@ function scoreComm(chat, cand, ev) {
     var manual = Math.round(stars.reduce(function (a, b) { return a + b; }, 0) / stars.length * 20);
     ev.push({
       dim: "comm", tag: "人工评分 " + manual,
-      snip: "耐心 " + (cand.ratePatience || "未评") + " 星 / 印象 " + (cand.rateImpression || "未评") + " 星（人工打星优先于文字自动分析）",
+      snip: "耐心 " + (cand.ratePatience || "未评") + " 星 / 印象 " + (cand.rateImpression || "未评") + " 星",
       neg: false
     });
     return { score: manual };
   }
-  if (!chat.trim()) {
-    var tip = (cand.chatImgs && cand.chatImgs.length)
-      ? "已传 " + cand.chatImgs.length + " 张聊天截图——点开截图看完后在下方打「耐心/印象」星，就会计入沟通分"
-      : "没有聊天记录，按 50 分中性计；可上传截图后人工打星";
-    ev.push({ dim: "comm", tag: "待人工评分", snip: tip, neg: false });
-    return { score: 50 };
-  }
-  var score = 50;
-  var politeHits = findAll(chat, POLITE);
-  if (politeHits.length) {
-    var pAdd = clamp(politeHits.length * 4, 4, 20);
-    score += pAdd;
-    ev.push({ dim: "comm", tag: "礼貌用语 +" + pAdd, snip: politeHits.map(function (h) { return h.word; }).join("、"), neg: false });
-  }
-  var proHits = findAll(chat, PROACTIVE);
-  if (proHits.length) {
-    var aAdd = clamp(proHits.length * 6, 6, 24);
-    score += aAdd;
-    ev.push({ dim: "comm", tag: "主动专业 +" + aAdd, snip: proHits.map(function (h) { return h.word; }).join("、"), neg: false });
-  }
-  var lines = chat.split(/\n+/).filter(function (l) { return l.trim().length > 0; });
-  var longLines = lines.filter(function (l) { return l.trim().length >= 30; });
-  if (longLines.length) {
-    score += 8;
-    ev.push({ dim: "comm", tag: "表达完整 +8", snip: snippet(longLines[0].trim(), 0, 0), neg: false });
-  }
-  var negHits = findAll(chat, NEGATIVE);
-  for (var i = 0; i < negHits.length; i++) {
-    score -= 10;
-    ev.push({ dim: "comm", tag: "负面信号 −10", snip: snippet(chat, negHits[i].idx, negHits[i].word.length), neg: true });
-  }
-  return { score: clamp(score, 0, 100) };
+  ev.push({ dim: "comm", tag: "待打星", snip: "还没打星，按 50 分中性计——翻一遍和这位老师的微信聊天，回来打「耐心/印象」星", neg: false });
+  return { score: 50 };
 }
 
 function evaluate(cand, settings) {
   var resume = String(cand.resume || "");
-  var chat = String(cand.chat || "");
-  var all = resume + "\n" + chat;
+  var all = resume;
   var ev = [];
 
   var edu = scoreEdu(resume, all, ev);
   var exp = scoreExp(all, settings, ev);
   var subj = scoreSubj(all, settings, ev);
-  var comm = scoreComm(chat, cand, ev);
+  var comm = scoreComm(cand, ev);
   var price = scorePrice(all, settings, ev);
   var local = scoreLocal(all, ev);
 
@@ -772,8 +721,8 @@ function chipRow(r) {
   if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
   if (c.ratePatience || c.rateImpression) {
     chips.push('<span class="chip">耐心' + (c.ratePatience || "—") + "★ 印象" + (c.rateImpression || "—") + "★</span>");
-  } else if (c.chatImgs.length) {
-    chips.push('<span class="chip todo">📷 截图待打星</span>');
+  } else {
+    chips.push('<span class="chip todo">☆ 待打星</span>');
   }
   if (r.years) chips.push('<span class="chip">' + r.years + "年经验</span>");
   if (r.rate) chips.push('<span class="chip">' + r.rate + " 元/时</span>");
@@ -799,13 +748,13 @@ function thumbHtml(src, alt, rmAttrs) {
 }
 
 function gallery(c, kind, label) {
-  var arr = kind === "resume" ? c.resumeImgs : c.chatImgs;
+  var arr = c.resumeImgs;
   var thumbs = arr.map(function (src, i) {
-    return thumbHtml(src, label + (i + 1), 'data-act="delimg" data-kind="' + kind + '" data-idx="' + i + '"');
+    return thumbHtml(src, label + (i + 1), 'data-act="delimg" data-idx="' + i + '"');
   }).join("");
   return '<div class="field-row"><label class="f">' + label + "（" + arr.length + " 张，点图放大）</label>" +
     '<div class="thumbs">' + thumbs + "</div>" +
-    '<button type="button" class="upl" data-act="addimg" data-kind="' + kind + '" style="margin-top:8px">＋ 添加' + label + "</button></div>";
+    '<button type="button" class="upl" data-act="addimg" style="margin-top:8px">＋ 添加' + label + "</button></div>";
 }
 
 function starRow(c, key, label) {
@@ -848,17 +797,13 @@ function renderList(results) {
       (r.flags.length ? '<div class="flagbanner">⚑ 命中红旗关键词：' + esc(r.flags.join("、")) + "，请谨慎核实后再约课。</div>" : "") +
       '<div class="dims">' + dimRows(r) + "</div>" +
       eviRows(r) +
-      '<div class="detail-cols" style="margin-top:12px">' +
-      gallery(c, "resume", "简历图片") +
-      gallery(c, "chat", "聊天截图") +
-      "</div>" +
-      '<div class="manual-block"><label class="f">人工评价：看完聊天截图后打星，计入「沟通表现」维度（再点一次同一颗星可取消）</label>' +
+      '<div class="manual-block"><label class="f">人工评价：翻一遍和这位老师的微信聊天，回来打星，计入「耐心·印象」维度（再点一次同一颗星可取消）</label>' +
       starRow(c, "ratePatience", "耐心") +
       starRow(c, "rateImpression", "印象（人怎么样）") +
       "</div>" +
       '<div class="detail-cols" style="margin-top:12px">' +
+      gallery(c, "resume", "简历图片") +
       '<details class="rawbox"><summary>查看简历原文</summary><pre>' + esc(c.resume || "（空）") + "</pre></details>" +
-      '<details class="rawbox"><summary>查看聊天记录原文</summary><pre>' + esc(c.chat || "（空）") + "</pre></details>" +
       "</div>" +
       '<div class="status-row"><label class="f" style="margin:0">状态：</label>' +
       '<select data-act="status">' +
@@ -951,47 +896,40 @@ function imageFilesToDataUrls(fileList, done) {
   Promise.all(files.map(compressImage)).then(done, function () { alert("有图片无法读取，请换一张试试。"); });
 }
 
-/* 表单里待添加的图片 */
-var pendImgs = { resume: [], chat: [] };
+/* 表单里待添加的简历图片 */
+var pendResumeImgs = [];
 
-function renderPendThumbs(kind) {
-  var box = $(kind === "resume" ? "resumeThumbs" : "chatThumbs");
-  box.innerHTML = pendImgs[kind].map(function (src, i) {
-    return thumbHtml(src, "待添加图片" + (i + 1), 'data-pend="' + kind + '" data-idx="' + i + '"');
+function renderPendThumbs() {
+  $("resumeThumbs").innerHTML = pendResumeImgs.map(function (src, i) {
+    return thumbHtml(src, "待添加图片" + (i + 1), 'data-pend="1" data-idx="' + i + '"');
   }).join("");
 }
 
 function bindImageInputs() {
   $("resumeImgBtn").addEventListener("click", function () { $("resumeImgInput").click(); });
-  $("chatImgBtn").addEventListener("click", function () { $("chatImgInput").click(); });
-  [["resumeImgInput", "resume"], ["chatImgInput", "chat"]].forEach(function (pair) {
-    $(pair[0]).addEventListener("change", function () {
-      var input = this;
-      imageFilesToDataUrls(input.files, function (urls) {
-        pendImgs[pair[1]] = pendImgs[pair[1]].concat(urls);
-        renderPendThumbs(pair[1]);
-        input.value = "";
-      });
+  $("resumeImgInput").addEventListener("change", function () {
+    var input = this;
+    imageFilesToDataUrls(input.files, function (urls) {
+      pendResumeImgs = pendResumeImgs.concat(urls);
+      renderPendThumbs();
+      input.value = "";
     });
   });
-  // 把截图直接粘贴进文字框
-  [["cResume", "resume"], ["cChat", "chat"]].forEach(function (pair) {
-    $(pair[0]).addEventListener("paste", function (e) {
-      if (e.clipboardData && e.clipboardData.files.length) {
-        e.preventDefault();
-        imageFilesToDataUrls(e.clipboardData.files, function (urls) {
-          pendImgs[pair[1]] = pendImgs[pair[1]].concat(urls);
-          renderPendThumbs(pair[1]);
-        });
-      }
-    });
+  // 把简历截图直接粘贴进文字框
+  $("cResume").addEventListener("paste", function (e) {
+    if (e.clipboardData && e.clipboardData.files.length) {
+      e.preventDefault();
+      imageFilesToDataUrls(e.clipboardData.files, function (urls) {
+        pendResumeImgs = pendResumeImgs.concat(urls);
+        renderPendThumbs();
+      });
+    }
   });
   // 删除待添加的图片
   document.addEventListener("click", function (e) {
     if (e.target.dataset.pend) {
-      var kind = e.target.dataset.pend;
-      pendImgs[kind].splice(Number(e.target.dataset.idx), 1);
-      renderPendThumbs(kind);
+      pendResumeImgs.splice(Number(e.target.dataset.idx), 1);
+      renderPendThumbs();
     } else if (e.target.dataset.full) {
       var lb = $("lightbox");
       lb.querySelector("img").src = e.target.src;
@@ -1004,14 +942,56 @@ function bindImageInputs() {
   });
 }
 
+/* ---------------- 姓名识别 ---------------- */
+
+var SURNAMES = "王李张刘陈杨黄赵吴周徐孙马朱胡郭何高林罗郑梁谢宋唐许韩冯邓曹彭曾肖田董袁潘于蒋蔡余杜叶程苏魏吕丁任沈姚卢姜崔钟谭陆汪范金石廖贾夏韦付方白邹孟熊秦邱江尹薛闫段雷侯龙史陶黎贺顾毛郝龚邵万钱严覃武戴莫孔向汤欧殷黄倪温蓝牛安常";
+
+function looksLikeName(s) {
+  if (!s || s.length < 2 || s.length > 4) return false;
+  if (!/^[一-龥·]+$/.test(s)) return false;
+  if (SURNAMES.indexOf(s.charAt(0)) < 0) return false;
+  // 排除常见的非姓名词
+  if (/(同学|老师|大学|学院|中学|高中|简历|数学|物理|经验|辅导|家教|毕业|高考|湖南|长沙)/.test(s)) return false;
+  return true;
+}
+
+function extractName(resume) {
+  var text = String(resume || "").slice(0, 400); // 姓名一般在开头
+  var m;
+  // 1. 「姓名：XXX」
+  m = text.match(/姓\s*名[：:\s]*([一-龥·]{2,4})/);
+  if (m && looksLikeName(m[1])) return m[1];
+  // 2. 「我叫XXX」
+  m = text.match(/我叫\s*([一-龥·]{2,4})/);
+  if (m && looksLikeName(m[1])) return m[1];
+  // 3. 「王老师 / 李同学」这类称呼
+  m = text.match(/([一-龥]{1,2})(老师|同学)/);
+  if (m) {
+    var c3 = m[1];
+    // 贪婪匹配可能带上前一个字（如「我是刘老师」匹配到「是刘」），退一个字再试
+    if (c3.length === 2 && SURNAMES.indexOf(c3.charAt(0)) < 0) c3 = c3.charAt(1);
+    if (SURNAMES.indexOf(c3.charAt(0)) >= 0 && !/(数学|物理|家教|辅导|应聘|各位)/.test(c3)) {
+      return c3 + m[2];
+    }
+  }
+  // 4. 「我是XXX」
+  m = text.match(/我是\s*([一-龥·]{2,4})(?=[，,。！!、\s]|$)/);
+  if (m && looksLikeName(m[1])) return m[1];
+  // 5. 第一行如果就是个名字
+  var first = text.split("\n")[0].trim().replace(/[：:，,。\s].*$/, "");
+  if (looksLikeName(first)) return first;
+  return "";
+}
+
 /* ---------------- 候选人操作 ---------------- */
 
-function addCandidate(name, resume, chat, resumeImgs, chatImgs) {
+function addCandidate(name, resume, resumeImgs, ratings) {
   state.candidates.push({
     id: "c" + Date.now() + Math.random().toString(36).slice(2, 7),
-    name: name, resume: resume, chat: chat,
-    resumeImgs: resumeImgs || [], chatImgs: chatImgs || [],
-    ratePatience: 0, rateImpression: 0,
+    name: name, resume: resume,
+    resumeImgs: resumeImgs || [],
+    ratePatience: (ratings && ratings.patience) || 0,
+    rateImpression: (ratings && ratings.impression) || 0,
     status: "pending", notes: "", createdAt: new Date().toISOString()
   });
 }
@@ -1020,27 +1000,46 @@ function bindActions() {
   $("addBtn").addEventListener("click", function () {
     var name = $("cName").value.trim();
     var resume = $("cResume").value.trim();
-    var chat = $("cChat").value.trim();
-    if (!name) { $("addMsg").textContent = "请先填姓名/称呼"; return; }
-    if (!resume && !chat && !pendImgs.resume.length && !pendImgs.chat.length) {
-      $("addMsg").textContent = "简历、聊天记录、图片至少要有一项"; return;
+    if (!resume && !pendResumeImgs.length) {
+      $("addMsg").textContent = "请先粘贴简历文字或上传简历图片"; return;
     }
-    addCandidate(name, resume, chat, pendImgs.resume, pendImgs.chat);
-    var hadChatImgs = pendImgs.chat.length > 0;
-    $("cName").value = ""; $("cResume").value = ""; $("cChat").value = "";
-    pendImgs = { resume: [], chat: [] };
-    renderPendThumbs("resume"); renderPendThumbs("chat");
-    $("addMsg").textContent = "已添加「" + name + "」" + (hadChatImgs ? "——点开该候选人查看截图并打「耐心/印象」星" : "");
+    if (!name) name = extractName(resume) || "候选人" + (state.candidates.length + 1);
+    addCandidate(name, resume, pendResumeImgs);
+    $("cName").value = ""; $("cName").dataset.auto = "";
+    $("cResume").value = "";
+    pendResumeImgs = [];
+    renderPendThumbs();
+    $("addMsg").textContent = "已添加「" + name + "」——看完微信聊天记得回来打「耐心/印象」星";
     save(); render();
   });
+
+  // 姓名从简历自动识别：只覆盖空白或上一次自动填的值，手动改过就不再动
+  $("cResume").addEventListener("input", function () {
+    var nameBox = $("cName");
+    if (nameBox.value && nameBox.dataset.auto !== "1") return;
+    var guess = extractName($("cResume").value);
+    if (guess) { nameBox.value = guess; nameBox.dataset.auto = "1"; }
+    else if (nameBox.dataset.auto === "1") { nameBox.value = ""; nameBox.dataset.auto = ""; }
+  });
+  $("cName").addEventListener("input", function () { this.dataset.auto = ""; });
 
   $("batchBtn").addEventListener("click", function () {
     var blocks = $("batchText").value.split(/\n\s*====+\s*\n/).map(function (b) { return b.trim(); }).filter(Boolean);
     var n = 0;
     blocks.forEach(function (b) {
       var lines = b.split("\n");
-      var name = lines[0].trim().slice(0, 30) || "未命名";
-      addCandidate(name, lines.slice(1).join("\n").trim(), "");
+      var first = lines[0].trim();
+      var name, resume;
+      if (first.length <= 6 && lines.length > 1) {
+        // 第一行是名字
+        name = first; resume = lines.slice(1).join("\n").trim();
+      } else {
+        // 整段都是简历，名字自动识别
+        resume = b;
+        name = extractName(resume);
+      }
+      if (!name) name = "候选人" + (state.candidates.length + 1);
+      addCandidate(name, resume, []);
       n++;
     });
     if (n) { $("batchText").value = ""; save(); render(); }
@@ -1061,7 +1060,7 @@ function bindActions() {
     }
   });
 
-  var detailImgTarget = null; // {id, kind}
+  var detailImgTarget = null; // 候选人 id
 
   $("candList").addEventListener("click", function (e) {
     var act = e.target.dataset.act;
@@ -1080,12 +1079,10 @@ function bindActions() {
       cand[key] = (cand[key] === v) ? 0 : v; // 点同一颗星取消
       save(); render();
     } else if (act === "delimg") {
-      var kind = e.target.dataset.kind;
-      var arr = kind === "resume" ? cand.resumeImgs : cand.chatImgs;
-      arr.splice(Number(e.target.dataset.idx), 1);
+      cand.resumeImgs.splice(Number(e.target.dataset.idx), 1);
       save(); render();
     } else if (act === "addimg") {
-      detailImgTarget = { id: cand.id, kind: e.target.dataset.kind };
+      detailImgTarget = cand.id;
       $("detailImgInput").click();
     }
   });
@@ -1093,12 +1090,10 @@ function bindActions() {
   $("detailImgInput").addEventListener("change", function () {
     var input = this;
     if (!detailImgTarget) return;
-    var cand = state.candidates.find(function (c) { return c.id === detailImgTarget.id; });
+    var cand = state.candidates.find(function (c) { return c.id === detailImgTarget; });
     if (!cand) return;
-    var kind = detailImgTarget.kind;
     imageFilesToDataUrls(input.files, function (urls) {
-      var arr = kind === "resume" ? cand.resumeImgs : cand.chatImgs;
-      arr.push.apply(arr, urls);
+      cand.resumeImgs.push.apply(cand.resumeImgs, urls);
       input.value = "";
       save(); render();
     });
@@ -1137,7 +1132,7 @@ function bindActions() {
 
   $("exportCsv").addEventListener("click", function () {
     var results = compute();
-    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "耐心(星)", "印象(星)", "湖南应届分", "科目分", "沟通分", "学历分", "经验分", "价格分", "红旗", "备注"];
+    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "耐心(星)", "印象(星)", "湖南应届分", "科目分", "耐心印象分", "学历分", "经验分", "价格分", "红旗", "备注"];
     var rows = results.map(function (r, i) {
       var c = r.cand;
       return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
@@ -1152,7 +1147,7 @@ function bindActions() {
   });
 
   $("demoBtn").addEventListener("click", function () {
-    DEMO.forEach(function (d) { addCandidate(d.name, d.resume, d.chat); });
+    DEMO.forEach(function (d) { addCandidate(d.name, d.resume, [], d.stars); });
     save(); render();
   });
 }
@@ -1176,23 +1171,23 @@ function download(filename, content, mime) {
 var DEMO = [
   {
     name: "示例·陈同学",
-    resume: "长沙长郡中学2026届毕业生，刚参加完湖南高考，总分646分，数学138分，物理95分，已被武汉大学录取。选科物化生，暑假在长沙，可教高中数学物理，140元/小时。",
-    chat: "您好！我今年刚高考完，对湖南的题型和考试节奏都很熟悉。想先了解一下妹妹数学和物理的薄弱环节？三角函数、立体几何和机械能守恒我都可以带，可以先免费试讲一次，我会提前备课，也比较有耐心，会带着她整理错题。"
+    resume: "姓名：陈雨桐。长沙长郡中学2026届毕业生，刚参加完湖南高考，总分646分，数学138分，物理95分，已被武汉大学录取。选科物化生，暑假在长沙，可教高中数学物理，140元/小时。",
+    stars: { patience: 5, impression: 5 }
   },
   {
     name: "示例·刘老师",
     resume: "湖南师范大学数学系硕士，4年家教经验，带过8名高中学生，提分明显，有教师资格证。主教高中数学，可加物理。150元/小时。",
-    chat: "您好，请问孩子目前的学习情况怎么样？我可以周末上课，提前备课，课后给您反馈。"
+    stars: { patience: 4, impression: 4 }
   },
   {
     name: "示例·赵同学",
     resume: "北京某高校大三在读，江苏高考，教过初中数学，时薪180元。",
-    chat: "在吗？可以教，时间都行。"
+    stars: { patience: 2, impression: 3 }
   },
   {
     name: "示例·孙老师",
     resume: "培训机构资深教师，8年教学经验，专教高中数学物理，一对一提分显著。收费280元/小时，需先付一学期费用，另收中介费200元。",
-    chat: "您好，我经验很丰富。不过需要先交定金才能排课，如果时间冲突可能要临时改时间。"
+    stars: null // 还没看微信聊天，示范「待打星」状态
   }
 ];
 
