@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>家教老师筛选器</title>
+</head>
+<body>
+<style>
+:root {
+  --paper: #f6f7f5;
+  --surface: #ffffff;
+  --surface-2: #eef1ec;
+  --ink: #22302a;
+  --ink-soft: #5b6a62;
+  --line: #dde3dc;
+  --accent: #1b7a5a;
+  --accent-soft: #e2f0e9;
+  --good: #1b7a5a;
+  --warn: #b07c22;
+  --warn-soft: #f5ecd8;
+  --bad: #b3453a;
+  --bad-soft: #f6e3e0;
+  --shadow: 0 1px 3px rgba(34, 48, 42, 0.08);
+  --serif: "Noto Serif SC", "Songti SC", "SimSun", "STSong", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141a17;
+    --surface: #1d2521;
+    --surface-2: #242e29;
+    --ink: #e6ebe7;
+    --ink-soft: #9aa8a0;
+    --line: #33403a;
+    --accent: #46a983;
+    --accent-soft: #21362d;
+    --good: #46a983;
+    --warn: #d1a04a;
+    --warn-soft: #3a3221;
+    --bad: #d4756a;
+    --bad-soft: #3d2823;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}
+:root[data-theme="light"] {
+  --paper: #f6f7f5;
+  --surface: #ffffff;
+  --surface-2: #eef1ec;
+  --ink: #22302a;
+  --ink-soft: #5b6a62;
+  --line: #dde3dc;
+  --accent: #1b7a5a;
+  --accent-soft: #e2f0e9;
+  --good: #1b7a5a;
+  --warn: #b07c22;
+  --warn-soft: #f5ecd8;
+  --bad: #b3453a;
+  --bad-soft: #f6e3e0;
+  --shadow: 0 1px 3px rgba(34, 48, 42, 0.08);
+}
+:root[data-theme="dark"] {
+  --paper: #141a17;
+  --surface: #1d2521;
+  --surface-2: #242e29;
+  --ink: #e6ebe7;
+  --ink-soft: #9aa8a0;
+  --line: #33403a;
+  --accent: #46a983;
+  --accent-soft: #21362d;
+  --good: #46a983;
+  --warn: #d1a04a;
+  --warn-soft: #3a3221;
+  --bad: #d4756a;
+  --bad-soft: #3d2823;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.wrap { max-width: 1020px; margin: 0 auto; padding: 24px 16px 80px; }
+header.site { margin: 16px 0 24px; }
+header.site h1 {
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+header.site .sub { color: var(--ink-soft); margin: 0; max-width: 46em; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 14px; box-shadow: var(--shadow);
+}
+.stat .n { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .l { font-size: 12px; color: var(--ink-soft); letter-spacing: 0.06em; }
+.stat.pass .n { color: var(--good); }
+.stat.hold .n { color: var(--warn); }
+.stat.reject .n { color: var(--bad); }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden;
+}
+.card > .card-head, details.card > summary {
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+details.card > summary { cursor: pointer; list-style: none; border-bottom: none; }
+details.card[open] > summary { border-bottom: 1px solid var(--line); }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: "▸"; color: var(--ink-soft); font-size: 12px; }
+details.card[open] > summary::before { content: "▾"; }
+.card h2 {
+  font-family: var(--serif); font-size: 18px; font-weight: 700; margin: 0;
+}
+.card .hint { color: var(--ink-soft); font-size: 13px; }
+.card-body { padding: 16px 18px; }
+label.f { display: block; font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
+input[type="text"], input[type="number"], textarea, select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--paper); color: var(--ink); font-family: inherit; font-size: 14px;
+}
+textarea { resize: vertical; min-height: 120px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.weights { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+.weight-item .wv { font-variant-numeric: tabular-nums; font-weight: 600; }
+.field-row { margin-bottom: 14px; }
+button {
+  font-family: inherit; font-size: 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  padding: 8px 16px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); }
+button:hover { filter: brightness(0.97); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.toolbar button { font-size: 13px; padding: 5px 10px; }
+/* 候选人条目 */
+.cand { border-bottom: 1px solid var(--line); }
+.cand:last-child { border-bottom: none; }
+.cand > summary {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center;
+  padding: 12px 18px; cursor: pointer; list-style: none;
+}
+.cand > summary::-webkit-details-marker { display: none; }
+.cand .rank { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--ink-soft); text-align: center; font-variant-numeric: tabular-nums; }
+.cand .who { min-width: 0; }
+.cand .name-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cand .name { font-weight: 700; font-size: 15px; }
+.cand .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+.chip {
+  font-size: 12px; padding: 1px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.chip.tier { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.chip.flag { background: var(--bad-soft); color: var(--bad); border-color: transparent; font-weight: 600; }
+.scorebox { display: flex; align-items: center; gap: 10px; }
+.score-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2.2em; text-align: right; }
+.score-num.good { color: var(--good); } .score-num.mid { color: var(--warn); } .score-num.low { color: var(--bad); }
+.bar { width: 90px; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 999px; }
+.bar i.good { background: var(--good); } .bar i.mid { background: var(--warn); } .bar i.low { background: var(--bad); }
+.pill {
+  font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: none;
+}
+.pill.pending { background: var(--surface-2); color: var(--ink-soft); }
+.pill.pass { background: var(--accent-soft); color: var(--good); }
+.pill.hold { background: var(--warn-soft); color: var(--warn); }
+.pill.reject { background: var(--bad-soft); color: var(--bad); }
+.cand-detail { padding: 4px 18px 18px; border-top: 1px dashed var(--line); }
+.dims { display: grid; gap: 8px; margin: 14px 0; }
+.dim { display: grid; grid-template-columns: 7.5em 1fr 3em; align-items: center; gap: 10px; font-size: 13px; }
+.dim .dl { color: var(--ink-soft); }
+.dim .dv { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.dim .bar { width: 100%; }
+.evi { margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.evi li { padding: 3px 0; border-bottom: 1px dotted var(--line); display: flex; gap: 8px; }
+.evi li:last-child { border-bottom: none; }
+.evi .tag { flex: none; color: var(--accent); font-weight: 600; }
+.evi .tag.neg { color: var(--bad); }
+.evi .snip { color: var(--ink-soft); overflow-wrap: anywhere; }
+.detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rawbox summary { cursor: pointer; font-size: 13px; color: var(--ink-soft); }
+.rawbox pre {
+  white-space: pre-wrap; overflow-wrap: anywhere; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 13px;
+  font-family: inherit; max-height: 260px; overflow-y: auto;
+}
+.status-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.status-row select { width: auto; }
+.notes { margin-top: 10px; }
+.notes textarea { min-height: 56px; }
+.empty { padding: 32px 18px; text-align: center; color: var(--ink-soft); }
+.footer-note { color: var(--ink-soft); font-size: 12px; text-align: center; margin-top: 28px; }
+.flagbanner {
+  margin: 10px 0 0; padding: 8px 12px; border-radius: 6px;
+  background: var(--bad-soft); color: var(--bad); font-size: 13px; font-weight: 600;
+}
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .grid2, .grid3, .detail-cols { grid-template-columns: 1fr; }
+  .weights { grid-template-columns: repeat(2, 1fr); }
+  .cand > summary { grid-template-columns: 24px 1fr; }
+  .cand .scorebox { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar i { transition: width 0.4s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header class="site">
+    <h1>家教老师筛选器</h1>
+    <p class="sub">把每位应聘老师的简历和微信聊天记录粘贴进来，按你设定的标准自动打分排序，每一分都能看到依据。数据只保存在你自己的浏览器里，不会上传。</p>
+  </header>
+
+  <section class="stats" id="stats" aria-label="统计"></section>
+
+  <details class="card" id="settingsCard">
+    <summary><h2>筛选标准</h2><span class="hint">调整权重、科目、预算和红旗关键词，改动后全部候选人自动重新打分</span></summary>
+    <div class="card-body">
+      <div class="weights" id="weights"></div>
+      <div class="grid3">
+        <div class="field-row">
+          <label class="f" for="subjects">需要辅导的科目 / 年级（空格分隔）</label>
+          <input type="text" id="subjects" placeholder="例如：高中 数学 物理">
+        </div>
+        <div class="field-row">
+          <label class="f" for="budgetMin">预算下限（元/小时）</label>
+          <input type="number" id="budgetMin" min="0" placeholder="例如 80">
+        </div>
+        <div class="field-row">
+          <label class="f" for="budgetMax">预算上限（元/小时）</label>
+          <input type="number" id="budgetMax" min="0" placeholder="例如 150">
+        </div>
+      </div>
+      <div class="field-row">
+        <label class="f" for="redFlags">红旗关键词（出现即警示，逗号或空格分隔）</label>
+        <input type="text" id="redFlags" placeholder="中介费 押金 定金 先付款">
+      </div>
+      <div class="field-row">
+        <label class="f" for="bonusWords">自定义加分关键词（每出现一个 +5 经验分，逗号或空格分隔）</label>
+        <input type="text" id="bonusWords" placeholder="例如：竞赛 奥数 雅思">
+      </div>
+    </div>
+  </details>
+
+  <section class="card">
+    <div class="card-head"><h2>添加候选人</h2><span class="hint">聊天记录建议只粘贴老师发的消息，沟通分更准</span></div>
+    <div class="card-body">
+      <div class="field-row">
+        <label class="f" for="cName">姓名 / 称呼</label>
+        <input type="text" id="cName" placeholder="例如：王老师、李同学">
+      </div>
+      <div class="grid2">
+        <div class="field-row">
+          <label class="f" for="cResume">简历（直接粘贴文字）</label>
+          <textarea id="cResume" placeholder="学校、学历、专业、家教经验、报价……"></textarea>
+        </div>
+        <div class="field-row">
+          <label class="f" for="cChat">微信聊天记录（直接粘贴文字）</label>
+          <textarea id="cChat" placeholder="老师在微信里发的消息……"></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="addBtn">添加并打分</button>
+        <span class="hint" id="addMsg" role="status"></span>
+      </div>
+      <details style="margin-top:14px">
+        <summary class="hint" style="cursor:pointer">批量导入（一次粘贴多份简历）</summary>
+        <div class="field-row" style="margin-top:10px">
+          <label class="f" for="batchText">每位候选人之间用一行 <code>====</code> 分隔；每段第一行是姓名，其余是简历内容</label>
+          <textarea id="batchText" placeholder="王老师&#10;北京师范大学数学系……&#10;====&#10;李同学&#10;复旦大学在读……"></textarea>
+        </div>
+        <button id="batchBtn">批量导入</button>
+      </details>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>候选人排名</h2>
+      <div class="toolbar">
+        <select id="filterStatus" aria-label="按状态筛选">
+          <option value="all">全部状态</option>
+          <option value="pending">待筛</option>
+          <option value="pass">通过</option>
+          <option value="hold">待定</option>
+          <option value="reject">淘汰</option>
+        </select>
+        <button id="demoBtn">载入示例</button>
+        <button id="exportJson">导出备份</button>
+        <button id="importJson">导入备份</button>
+        <button id="exportCsv">导出表格</button>
+        <button class="danger" id="clearAll">清空</button>
+        <input type="file" id="importFile" accept=".json" hidden>
+      </div>
+    </div>
+    <div id="candList"></div>
+  </section>
+
+  <p class="footer-note">打分只是初筛参考——分数接近时，请以试课表现为准。</p>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- 数据 ---------------- */
+
+var STORE_KEY = "jiajiao-filter-v1";
+
+var DEFAULT_SETTINGS = {
+  weights: { edu: 30, exp: 25, subj: 15, comm: 20, price: 10 },
+  subjects: "",
+  budgetMin: "",
+  budgetMax: "",
+  redFlags: "中介费 押金 定金 先付款 刷单",
+  bonusWords: ""
+};
+
+var WEIGHT_LABELS = { edu: "学历背景", exp: "教学经验", subj: "科目匹配", comm: "沟通表现", price: "价格匹配" };
+
+var STATUS_LABELS = { pending: "待筛", pass: "通过", hold: "待定", reject: "淘汰" };
+
+var SCHOOL_QB = ["清华", "北京大学", "北大"];
+var SCHOOL_985 = [
+  "复旦", "上海交通大学", "上海交大", "浙江大学", "浙大", "中国科学技术大学", "中科大",
+  "南京大学", "中国人民大学", "人民大学", "北京航空航天", "北航", "北京理工", "南开",
+  "天津大学", "哈尔滨工业大学", "哈工大", "西安交通大学", "西安交大", "同济", "东南大学",
+  "中山大学", "华中科技大学", "华中科大", "武汉大学", "武大", "厦门大学", "厦大",
+  "山东大学", "四川大学", "川大", "电子科技大学", "重庆大学", "吉林大学", "大连理工",
+  "东北大学", "湖南大学", "中南大学", "华南理工", "兰州大学", "西北工业大学", "西工大",
+  "中国农业大学", "国防科技大学", "中央民族大学", "华东师范大学", "华东师大",
+  "北京师范大学", "北师大", "中国海洋大学", "西北农林"
+];
+var SCHOOL_211 = [
+  "上海财经", "中央财经", "对外经济贸易", "对外经贸", "北京邮电", "北邮", "北京外国语", "北外",
+  "上海外国语", "上外", "中国政法", "华中师范", "东北师范", "南京师范", "华南师范",
+  "陕西师范", "湖南师范", "暨南大学", "苏州大学", "郑州大学", "云南大学", "上海大学",
+  "西南大学", "河海大学", "北京交通", "北京科技", "南京航空航天", "南航", "南京理工",
+  "西安电子科技", "西电", "中国传媒", "中央音乐学院", "北京中医药", "中国药科", "江南大学",
+  "合肥工业", "福州大学", "华北电力", "长安大学", "辽宁大学", "东华大学", "武汉理工",
+  "中国地质", "中国矿业", "中国石油", "哈尔滨工程", "天津医科", "广西大学", "内蒙古大学",
+  "新疆大学", "海南大学", "贵州大学", "南昌大学", "太原理工", "河北工业", "安徽大学",
+  "中南财经政法", "西南财经", "空军军医", "海军军医", "第四军医", "第二军医"
+];
+
+var state = load();
+
+function load() {
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      var s = JSON.parse(raw);
+      s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
+      s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
+      s.candidates = s.candidates || [];
+      return s;
+    }
+  } catch (e) { /* 损坏则重置 */ }
+  return { settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), candidates: [] };
+}
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式下忽略 */ }
+}
+
+/* ---------------- 打分引擎 ---------------- */
+
+function splitWords(str) {
+  return String(str || "").split(/[,，;；、\s]+/).filter(Boolean);
+}
+
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+function snippet(text, idx, len) {
+  var start = Math.max(0, idx - 14);
+  var end = Math.min(text.length, idx + len + 20);
+  return (start > 0 ? "…" : "") + text.slice(start, end).replace(/\s+/g, " ") + (end < text.length ? "…" : "");
+}
+
+function findAll(text, words) {
+  // 返回 [{word, idx}]，同一个词只记第一次出现
+  var hits = [];
+  for (var i = 0; i < words.length; i++) {
+    var idx = text.indexOf(words[i]);
+    if (idx >= 0) hits.push({ word: words[i], idx: idx });
+  }
+  return hits;
+}
+
+function scoreEdu(resume, all, ev) {
+  var base = 35, tier = "";
+  var hit = findAll(all, SCHOOL_QB);
+  if (hit.length) { base = 100; tier = "清北"; }
+  else if ((hit = findAll(all, SCHOOL_985)).length) { base = 88; tier = "985"; }
+  else if ((hit = findAll(all, SCHOOL_211)).length) { base = 74; tier = "211"; }
+  else if (/双一流/.test(all)) { base = 70; tier = "双一流"; hit = findAll(all, ["双一流"]); }
+  else if (/(一本|重点大学)/.test(all)) { base = 58; tier = "一本"; hit = findAll(all, ["一本", "重点大学"]); }
+  else if (/(大学|学院|本科)/.test(all)) { base = 45; tier = "本科"; hit = []; }
+  if (hit.length) ev.push({ dim: "edu", tag: "院校：" + tier, snip: snippet(all, hit[0].idx, hit[0].word.length), neg: false });
+  var score = base;
+  if (/博士/.test(all)) { score += 12; ev.push({ dim: "edu", tag: "博士 +12", snip: snippet(all, all.indexOf("博士"), 2), neg: false }); }
+  else if (/(硕士|研究生)/.test(all)) {
+    var m = all.match(/(硕士|研究生)/);
+    score += 8; ev.push({ dim: "edu", tag: "硕士/研究生 +8", snip: snippet(all, m.index, m[0].length), neg: false });
+  }
+  if (/师范/.test(all) && tier !== "清北") { score += 6; ev.push({ dim: "edu", tag: "师范背景 +6", snip: snippet(all, all.indexOf("师范"), 2), neg: false }); }
+  return { score: clamp(score, 0, 100), tier: tier };
+}
+
+function scoreExp(all, settings, ev) {
+  var score = 20, years = 0;
+  var ym = all.match(/(\d+)\s*年(?:多|余)?(?:的)?(?:家教|教学|辅导|授课|带课)?(?:相关)?经验/) || all.match(/(?:教龄|家教|辅导)\D{0,4}(\d+)\s*年/);
+  if (ym) {
+    years = parseInt(ym[1], 10);
+    var yAdd = clamp(years, 0, 5) * 8;
+    score += yAdd;
+    ev.push({ dim: "exp", tag: years + "年经验 +" + yAdd, snip: snippet(all, ym.index, ym[0].length), neg: false });
+  } else if (/(家教经验|辅导经验|教学经验|做过家教|带过学生|一对一)/.test(all)) {
+    var m1 = all.match(/(家教经验|辅导经验|教学经验|做过家教|带过学生|一对一)/);
+    score += 16;
+    ev.push({ dim: "exp", tag: "有相关经验 +16", snip: snippet(all, m1.index, m1[0].length), neg: false });
+  }
+  var nm = all.match(/带过\D{0,3}(\d+)\s*[名个位]/);
+  if (nm) {
+    var nAdd = clamp(parseInt(nm[1], 10) * 2, 2, 16);
+    score += nAdd;
+    ev.push({ dim: "exp", tag: "带过" + nm[1] + "名学生 +" + nAdd, snip: snippet(all, nm.index, nm[0].length), neg: false });
+  }
+  if (/(提分|提高\D{0,6}分|成绩(明显)?(提升|提高)|考上|逆袭)/.test(all)) {
+    var m2 = all.match(/(提分|提高\D{0,6}分|成绩(明显)?(提升|提高)|考上|逆袭)/);
+    score += 12;
+    ev.push({ dim: "exp", tag: "有提分成果 +12", snip: snippet(all, m2.index, m2[0].length), neg: false });
+  }
+  if (/(教师资格证|教资)/.test(all)) {
+    var m3 = all.match(/(教师资格证|教资)/);
+    score += 10;
+    ev.push({ dim: "exp", tag: "教师资格证 +10", snip: snippet(all, m3.index, m3[0].length), neg: false });
+  }
+  if (/(在职教师|任教|培训机构|机构(老师|任职|工作)|专职)/.test(all)) {
+    var m4 = all.match(/(在职教师|任教|培训机构|机构(老师|任职|工作)|专职)/);
+    score += 10;
+    ev.push({ dim: "exp", tag: "在校/机构任教 +10", snip: snippet(all, m4.index, m4[0].length), neg: false });
+  }
+  var bonus = splitWords(settings.bonusWords);
+  var bHits = findAll(all, bonus);
+  for (var i = 0; i < bHits.length; i++) {
+    score += 5;
+    ev.push({ dim: "exp", tag: "关键词「" + bHits[i].word + "」 +5", snip: snippet(all, bHits[i].idx, bHits[i].word.length), neg: false });
+  }
+  return { score: clamp(score, 0, 100), years: years };
+}
+
+function scoreSubj(all, settings, ev) {
+  var words = splitWords(settings.subjects);
+  if (!words.length) {
+    ev.push({ dim: "subj", tag: "未设置科目", snip: "在「筛选标准」里填写科目后此项才生效，当前按 60 分中性计", neg: false });
+    return { score: 60, matched: [] };
+  }
+  var hits = findAll(all, words);
+  var matched = hits.map(function (h) { return h.word; });
+  for (var i = 0; i < hits.length; i++) {
+    ev.push({ dim: "subj", tag: "匹配「" + hits[i].word + "」", snip: snippet(all, hits[i].idx, hits[i].word.length), neg: false });
+  }
+  if (!hits.length) ev.push({ dim: "subj", tag: "未提及所需科目", snip: "简历和聊天里都没找到：" + words.join("、"), neg: true });
+  return { score: Math.round(100 * hits.length / words.length), matched: matched };
+}
+
+function extractRate(all) {
+  var m = all.match(/(\d{2,4})\s*(?:元|块|¥)?\s*(?:\/|每|一)\s*(?:小时|时|h|H|节|课时)/) ||
+          all.match(/(?:时薪|课时费|价格|收费|费用)\D{0,6}(\d{2,4})/);
+  if (!m) return null;
+  var v = parseInt(m[1], 10);
+  if (v < 20 || v > 3000) return null;
+  return { rate: v, idx: m.index, len: m[0].length };
+}
+
+function scorePrice(all, settings, ev) {
+  var min = parseFloat(settings.budgetMin), max = parseFloat(settings.budgetMax);
+  var r = extractRate(all);
+  if (!r) {
+    ev.push({ dim: "price", tag: "未报价", snip: "没有识别到报价，按 50 分中性计，建议在微信里确认", neg: false });
+    return { score: 50, rate: null };
+  }
+  ev.push({ dim: "price", tag: "报价 " + r.rate + " 元/小时", snip: snippet(all, r.idx, r.len), neg: false });
+  if (isNaN(max) || max <= 0) return { score: 70, rate: r.rate };
+  if (r.rate <= max && (isNaN(min) || r.rate >= min)) return { score: 100, rate: r.rate };
+  if (!isNaN(min) && r.rate < min) return { score: 90, rate: r.rate };
+  var over = (r.rate - max) / max;
+  var s = over <= 0.2 ? 60 : over <= 0.5 ? 35 : 15;
+  ev.push({ dim: "price", tag: "超出预算上限", snip: "报价高于预算 " + Math.round(over * 100) + "%", neg: true });
+  return { score: s, rate: r.rate };
+}
+
+var POLITE = ["您好", "您", "请问", "谢谢", "麻烦", "不好意思", "感谢", "打扰"];
+var PROACTIVE = ["试讲", "试课", "免费试", "方便的时间", "什么时候方便", "我可以先", "提前备课", "备课",
+  "了解一下孩子", "孩子的情况", "学习情况", "薄弱", "基础怎么样", "用什么教材", "教材", "课本",
+  "做个规划", "学习计划", "随时可以", "发给您", "反馈"];
+var NEGATIVE = ["涨价", "加价", "临时有事", "取消", "改时间", "迟到", "先交", "先付", "转账给我", "催一下"];
+
+function scoreComm(chat, ev) {
+  if (!chat.trim()) {
+    ev.push({ dim: "comm", tag: "无聊天记录", snip: "没有粘贴聊天记录，按 50 分中性计", neg: false });
+    return { score: 50 };
+  }
+  var score = 50;
+  var politeHits = findAll(chat, POLITE);
+  if (politeHits.length) {
+    var pAdd = clamp(politeHits.length * 4, 4, 20);
+    score += pAdd;
+    ev.push({ dim: "comm", tag: "礼貌用语 +" + pAdd, snip: politeHits.map(function (h) { return h.word; }).join("、"), neg: false });
+  }
+  var proHits = findAll(chat, PROACTIVE);
+  if (proHits.length) {
+    var aAdd = clamp(proHits.length * 6, 6, 24);
+    score += aAdd;
+    ev.push({ dim: "comm", tag: "主动专业 +" + aAdd, snip: proHits.map(function (h) { return h.word; }).join("、"), neg: false });
+  }
+  var lines = chat.split(/\n+/).filter(function (l) { return l.trim().length > 0; });
+  var longLines = lines.filter(function (l) { return l.trim().length >= 30; });
+  if (longLines.length) {
+    score += 8;
+    ev.push({ dim: "comm", tag: "表达完整 +8", snip: snippet(longLines[0].trim(), 0, 0), neg: false });
+  }
+  var negHits = findAll(chat, NEGATIVE);
+  for (var i = 0; i < negHits.length; i++) {
+    score -= 10;
+    ev.push({ dim: "comm", tag: "负面信号 −10", snip: snippet(chat, negHits[i].idx, negHits[i].word.length), neg: true });
+  }
+  return { score: clamp(score, 0, 100) };
+}
+
+function evaluate(cand, settings) {
+  var resume = String(cand.resume || "");
+  var chat = String(cand.chat || "");
+  var all = resume + "\n" + chat;
+  var ev = [];
+
+  var edu = scoreEdu(resume, all, ev);
+  var exp = scoreExp(all, settings, ev);
+  var subj = scoreSubj(all, settings, ev);
+  var comm = scoreComm(chat, ev);
+  var price = scorePrice(all, settings, ev);
+
+  var flags = [];
+  var flagWords = splitWords(settings.redFlags);
+  var fHits = findAll(all, flagWords);
+  for (var i = 0; i < fHits.length; i++) {
+    flags.push(fHits[i].word);
+    ev.push({ dim: "flag", tag: "红旗「" + fHits[i].word + "」", snip: snippet(all, fHits[i].idx, fHits[i].word.length), neg: true });
+  }
+
+  var dims = { edu: edu.score, exp: exp.score, subj: subj.score, comm: comm.score, price: price.score };
+  var w = settings.weights;
+  var wSum = 0, total = 0;
+  for (var k in dims) { wSum += (Number(w[k]) || 0); }
+  if (wSum <= 0) wSum = 1;
+  for (var k2 in dims) { total += dims[k2] * (Number(w[k2]) || 0) / wSum; }
+  total = Math.round(total);
+  if (flags.length) total = Math.max(0, total - 15 * flags.length);
+
+  return {
+    total: total, dims: dims, evidence: ev, flags: flags,
+    tier: edu.tier, years: exp.years, rate: price.rate, matched: subj.matched
+  };
+}
+
+/* ---------------- 界面 ---------------- */
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+function $(id) { return document.getElementById(id); }
+
+function grade(n) { return n >= 75 ? "good" : n >= 50 ? "mid" : "low"; }
+
+function renderStats(results) {
+  var c = { total: results.length, pass: 0, hold: 0, reject: 0 };
+  results.forEach(function (r) { if (c[r.cand.status] !== undefined) c[r.cand.status]++; });
+  $("stats").innerHTML =
+    '<div class="stat"><div class="n">' + c.total + '</div><div class="l">候选人</div></div>' +
+    '<div class="stat pass"><div class="n">' + c.pass + '</div><div class="l">通过</div></div>' +
+    '<div class="stat hold"><div class="n">' + c.hold + '</div><div class="l">待定</div></div>' +
+    '<div class="stat reject"><div class="n">' + c.reject + '</div><div class="l">淘汰</div></div>';
+}
+
+function chipRow(r) {
+  var chips = [];
+  if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
+  if (r.years) chips.push('<span class="chip">' + r.years + "年经验</span>");
+  if (r.rate) chips.push('<span class="chip">' + r.rate + " 元/时</span>");
+  if (r.matched.length) chips.push('<span class="chip">' + esc(r.matched.join("·")) + "</span>");
+  for (var i = 0; i < r.flags.length; i++) chips.push('<span class="chip flag">⚑ ' + esc(r.flags[i]) + "</span>");
+  return chips.join("");
+}
+
+function dimRows(r) {
+  var html = "";
+  for (var k in WEIGHT_LABELS) {
+    var v = r.dims[k];
+    html += '<div class="dim"><span class="dl">' + WEIGHT_LABELS[k] + "（权重" + esc(state.settings.weights[k]) + '）</span>' +
+      '<span class="bar"><i class="' + grade(v) + '" style="width:' + v + '%"></i></span>' +
+      '<span class="dv">' + v + "</span></div>";
+  }
+  return html;
+}
+
+function eviRows(r) {
+  if (!r.evidence.length) return "";
+  return '<ul class="evi">' + r.evidence.map(function (e) {
+    return '<li><span class="tag' + (e.neg ? " neg" : "") + '">' + esc(e.tag) + '</span><span class="snip">' + esc(e.snip) + "</span></li>";
+  }).join("") + "</ul>";
+}
+
+function renderList(results) {
+  var filter = $("filterStatus").value;
+  var shown = results.filter(function (r) { return filter === "all" || r.cand.status === filter; });
+  if (!shown.length) {
+    $("candList").innerHTML = '<div class="empty">' +
+      (results.length ? "该状态下没有候选人。" : "还没有候选人——在上面添加，或点「载入示例」看看效果。") + "</div>";
+    return;
+  }
+  var html = shown.map(function (r, i) {
+    var c = r.cand, g = grade(r.total);
+    return '<details class="cand" data-id="' + c.id + '">' +
+      "<summary>" +
+      '<span class="rank">' + (i + 1) + "</span>" +
+      '<span class="who"><span class="name-line"><span class="name">' + esc(c.name) + '</span>' +
+      '<span class="pill ' + c.status + '">' + STATUS_LABELS[c.status] + "</span></span>" +
+      '<span class="chips">' + chipRow(r) + "</span></span>" +
+      '<span class="scorebox"><span class="bar"><i class="' + g + '" style="width:' + r.total + '%"></i></span>' +
+      '<span class="score-num ' + g + '">' + r.total + "</span></span>" +
+      "</summary>" +
+      '<div class="cand-detail">' +
+      (r.flags.length ? '<div class="flagbanner">⚑ 命中红旗关键词：' + esc(r.flags.join("、")) + "，请谨慎核实后再约课。</div>" : "") +
+      '<div class="dims">' + dimRows(r) + "</div>" +
+      eviRows(r) +
+      '<div class="detail-cols" style="margin-top:12px">' +
+      '<details class="rawbox"><summary>查看简历原文</summary><pre>' + esc(c.resume || "（空）") + "</pre></details>" +
+      '<details class="rawbox"><summary>查看聊天记录原文</summary><pre>' + esc(c.chat || "（空）") + "</pre></details>" +
+      "</div>" +
+      '<div class="status-row"><label class="f" style="margin:0">状态：</label>' +
+      '<select data-act="status">' +
+      Object.keys(STATUS_LABELS).map(function (k) {
+        return '<option value="' + k + '"' + (c.status === k ? " selected" : "") + ">" + STATUS_LABELS[k] + "</option>";
+      }).join("") +
+      "</select>" +
+      '<button class="danger" data-act="del">删除该候选人</button></div>' +
+      '<div class="notes"><label class="f">备注</label>' +
+      '<textarea data-act="notes" placeholder="试课印象、约课时间……">' + esc(c.notes || "") + "</textarea></div>" +
+      "</div></details>";
+  }).join("");
+  $("candList").innerHTML = html;
+}
+
+function compute() {
+  return state.candidates
+    .map(function (c) { return { cand: c, /* 打分 */ ...evaluate(c, state.settings) }; })
+    .sort(function (a, b) { return b.total - a.total; });
+}
+
+function render() {
+  var results = compute();
+  renderStats(results);
+  renderList(results);
+}
+
+/* ---------------- 设置表单 ---------------- */
+
+function renderSettingsForm() {
+  var w = state.settings.weights;
+  $("weights").innerHTML = Object.keys(WEIGHT_LABELS).map(function (k) {
+    return '<div class="weight-item"><label class="f" for="w_' + k + '">' + WEIGHT_LABELS[k] +
+      '　<span class="wv" id="wv_' + k + '">' + esc(w[k]) + "</span></label>" +
+      '<input type="range" id="w_' + k + '" min="0" max="50" step="5" value="' + esc(w[k]) + '" style="width:100%">' +
+      "</div>";
+  }).join("");
+  $("subjects").value = state.settings.subjects;
+  $("budgetMin").value = state.settings.budgetMin;
+  $("budgetMax").value = state.settings.budgetMax;
+  $("redFlags").value = state.settings.redFlags;
+  $("bonusWords").value = state.settings.bonusWords;
+}
+
+function bindSettings() {
+  $("weights").addEventListener("input", function (e) {
+    var m = e.target.id.match(/^w_(\w+)$/);
+    if (!m) return;
+    state.settings.weights[m[1]] = Number(e.target.value);
+    $("wv_" + m[1]).textContent = e.target.value;
+    save(); render();
+  });
+  ["subjects", "budgetMin", "budgetMax", "redFlags", "bonusWords"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      state.settings[id] = $(id).value;
+      save(); render();
+    });
+  });
+}
+
+/* ---------------- 候选人操作 ---------------- */
+
+function addCandidate(name, resume, chat) {
+  state.candidates.push({
+    id: "c" + Date.now() + Math.random().toString(36).slice(2, 7),
+    name: name, resume: resume, chat: chat,
+    status: "pending", notes: "", createdAt: new Date().toISOString()
+  });
+}
+
+function bindActions() {
+  $("addBtn").addEventListener("click", function () {
+    var name = $("cName").value.trim();
+    var resume = $("cResume").value.trim();
+    var chat = $("cChat").value.trim();
+    if (!name) { $("addMsg").textContent = "请先填姓名/称呼"; return; }
+    if (!resume && !chat) { $("addMsg").textContent = "简历和聊天记录至少填一项"; return; }
+    addCandidate(name, resume, chat);
+    $("cName").value = ""; $("cResume").value = ""; $("cChat").value = "";
+    $("addMsg").textContent = "已添加「" + name + "」";
+    save(); render();
+  });
+
+  $("batchBtn").addEventListener("click", function () {
+    var blocks = $("batchText").value.split(/\n\s*====+\s*\n/).map(function (b) { return b.trim(); }).filter(Boolean);
+    var n = 0;
+    blocks.forEach(function (b) {
+      var lines = b.split("\n");
+      var name = lines[0].trim().slice(0, 30) || "未命名";
+      addCandidate(name, lines.slice(1).join("\n").trim(), "");
+      n++;
+    });
+    if (n) { $("batchText").value = ""; save(); render(); }
+    alert(n ? "已导入 " + n + " 位候选人" : "没有识别到内容，请检查分隔符 ====");
+  });
+
+  $("candList").addEventListener("change", function (e) {
+    var box = e.target.closest(".cand");
+    if (!box) return;
+    var cand = state.candidates.find(function (c) { return c.id === box.dataset.id; });
+    if (!cand) return;
+    if (e.target.dataset.act === "status") {
+      cand.status = e.target.value;
+      save(); render();
+    } else if (e.target.dataset.act === "notes") {
+      cand.notes = e.target.value;
+      save();
+    }
+  });
+
+  $("candList").addEventListener("click", function (e) {
+    if (e.target.dataset.act !== "del") return;
+    var box = e.target.closest(".cand");
+    var cand = state.candidates.find(function (c) { return c.id === box.dataset.id; });
+    if (cand && confirm("确定删除「" + cand.name + "」？此操作不可恢复。")) {
+      state.candidates = state.candidates.filter(function (c) { return c.id !== cand.id; });
+      save(); render();
+    }
+  });
+
+  $("filterStatus").addEventListener("change", render);
+
+  $("clearAll").addEventListener("click", function () {
+    if (state.candidates.length && confirm("确定清空全部 " + state.candidates.length + " 位候选人？建议先导出备份。")) {
+      state.candidates = [];
+      save(); render();
+    }
+  });
+
+  $("exportJson").addEventListener("click", function () {
+    download("家教筛选-备份-" + today() + ".json", JSON.stringify(state, null, 2), "application/json");
+  });
+
+  $("importJson").addEventListener("click", function () { $("importFile").click(); });
+  $("importFile").addEventListener("change", function () {
+    var f = this.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var s = JSON.parse(reader.result);
+        if (!s || !Array.isArray(s.candidates)) throw new Error("bad");
+        s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
+        s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
+        state = s;
+        save(); renderSettingsForm(); render();
+        alert("已导入 " + state.candidates.length + " 位候选人");
+      } catch (err) { alert("导入失败：文件格式不对，请选择本工具导出的备份文件。"); }
+    };
+    reader.readAsText(f);
+    this.value = "";
+  });
+
+  $("exportCsv").addEventListener("click", function () {
+    var results = compute();
+    var head = ["排名", "姓名", "总分", "状态", "院校层次", "经验年数", "报价(元/时)", "学历分", "经验分", "科目分", "沟通分", "价格分", "红旗", "备注"];
+    var rows = results.map(function (r, i) {
+      var c = r.cand;
+      return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.tier, r.years || "", r.rate || "",
+        r.dims.edu, r.dims.exp, r.dims.subj, r.dims.comm, r.dims.price,
+        r.flags.join("、"), c.notes || ""];
+    });
+    var csv = "\uFEFF" + [head].concat(rows).map(function (row) {
+      return row.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\r\n");
+    download("家教筛选-排名-" + today() + ".csv", csv, "text/csv");
+  });
+
+  $("demoBtn").addEventListener("click", function () {
+    DEMO.forEach(function (d) { addCandidate(d.name, d.resume, d.chat); });
+    save(); render();
+  });
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function download(filename, content, mime) {
+  var blob = new Blob([content], { type: mime + ";charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+/* ---------------- 示例数据 ---------------- */
+
+var DEMO = [
+  {
+    name: "示例·王老师",
+    resume: "北京师范大学数学系硕士研究生，5年家教经验，带过12名高中学生，多数提分30分以上，持有高中数学教师资格证。收费120元/小时。",
+    chat: "您好，看到您找高中数学家教。我可以先免费试讲一节，方便的时间您定。想先了解一下孩子的学习情况和薄弱环节，用什么教材？我会提前备课，每次课后给您发学习反馈。"
+  },
+  {
+    name: "示例·李同学",
+    resume: "郑州大学本科在读，大二，数学专业，做过家教，辅导过初中生。时薪60元。",
+    chat: "你好，在吗？我可以教。时间都行，随便约。"
+  },
+  {
+    name: "示例·张老师",
+    resume: "某培训机构资深教师，8年教学经验，专教高中数学物理，一对一提分显著。300元/小时，需先付半学期费用，另收中介费200元。",
+    chat: "您好，我经验很丰富。不过需要先交定金才能排课，另外如果路远可能要涨价。"
+  }
+];
+
+/* ---------------- 启动 ---------------- */
+
+renderSettingsForm();
+bindSettings();
+bindActions();
+if (!state.candidates.length) { $("settingsCard").open = true; }
+render();
+</script>
+</body>
+</html>
