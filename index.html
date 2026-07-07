@@ -205,6 +205,31 @@ button:hover { filter: brightness(0.97); }
 .notes { margin-top: 10px; }
 .notes textarea { min-height: 56px; }
 .empty { padding: 32px 18px; text-align: center; color: var(--ink-soft); }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.thumb {
+  position: relative; width: 76px; height: 76px; border: 1px solid var(--line);
+  border-radius: 6px; overflow: hidden; background: var(--surface-2);
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.thumb .rm {
+  position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0;
+  line-height: 18px; font-size: 13px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55); color: #fff; border: none;
+}
+button.upl { font-size: 13px; padding: 5px 10px; }
+.stars { display: flex; gap: 0; }
+.stars button { border: none; background: none; font-size: 22px; padding: 0 3px; color: var(--line); cursor: pointer; line-height: 1; }
+.stars button.on { color: var(--warn); }
+.rate-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; flex-wrap: wrap; }
+.rate-row .rl { font-size: 13px; color: var(--ink-soft); min-width: 8.5em; }
+.manual-block { margin-top: 12px; padding: 10px 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+.chip.todo { background: var(--warn-soft); color: var(--warn); border-color: transparent; font-weight: 600; }
+#lightbox {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.82); display: none;
+  align-items: center; justify-content: center; z-index: 50; cursor: zoom-out; padding: 16px;
+}
+#lightbox.show { display: flex; }
+#lightbox img { max-width: 100%; max-height: 100%; border-radius: 4px; }
 .footer-note { color: var(--ink-soft); font-size: 12px; text-align: center; margin-top: 28px; }
 .flagbanner {
   margin: 10px 0 0; padding: 8px 12px; border-radius: 6px;
@@ -260,7 +285,7 @@ button:hover { filter: brightness(0.97); }
   </details>
 
   <section class="card">
-    <div class="card-head"><h2>添加候选人</h2><span class="hint">聊天记录建议只粘贴老师发的消息，沟通分更准</span></div>
+    <div class="card-head"><h2>添加候选人</h2><span class="hint">简历可粘贴文字或上传图片；聊天记录可上传截图，看完后人工打「耐心 / 印象」星</span></div>
     <div class="card-body">
       <div class="field-row">
         <label class="f" for="cName">姓名 / 称呼</label>
@@ -268,12 +293,23 @@ button:hover { filter: brightness(0.97); }
       </div>
       <div class="grid2">
         <div class="field-row">
-          <label class="f" for="cResume">简历（直接粘贴文字）</label>
-          <textarea id="cResume" placeholder="学校、学历、专业、家教经验、报价……"></textarea>
+          <label class="f" for="cResume">简历 · 方式一：粘贴文字（能自动打分）</label>
+          <textarea id="cResume" placeholder="学校、学历、高考分数、家教经验、报价……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
+          <div class="btn-row" style="margin-top:8px">
+            <button type="button" class="upl" id="resumeImgBtn">方式二：上传简历图片</button>
+            <span class="hint">图片供人工查看，学校/分数等关键信息请尽量补成文字</span>
+          </div>
+          <div class="thumbs" id="resumeThumbs"></div>
         </div>
         <div class="field-row">
-          <label class="f" for="cChat">微信聊天记录（直接粘贴文字）</label>
-          <textarea id="cChat" placeholder="老师在微信里发的消息……"></textarea>
+          <label class="f">微信聊天记录 · 上传截图（主要看耐心和人怎么样）</label>
+          <div class="btn-row">
+            <button type="button" class="upl" id="chatImgBtn">上传聊天截图</button>
+            <span class="hint">可多张，添加后在名单里点开该候选人打星</span>
+          </div>
+          <div class="thumbs" id="chatThumbs"></div>
+          <label class="f" for="cChat" style="margin-top:10px">也可以粘贴聊天文字（能自动分析，建议只粘老师发的消息）</label>
+          <textarea id="cChat" placeholder="老师在微信里发的消息……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
         </div>
       </div>
       <div class="btn-row">
@@ -313,8 +349,13 @@ button:hover { filter: brightness(0.97); }
     <div id="candList"></div>
   </section>
 
-  <p class="footer-note">打分只是初筛参考——分数接近时，请以试课表现为准。</p>
+  <p class="footer-note">打分只是初筛参考——分数接近时，请以聊天截图里的耐心程度和试课表现为准。</p>
 </div>
+
+<input type="file" id="resumeImgInput" accept="image/*" multiple hidden>
+<input type="file" id="chatImgInput" accept="image/*" multiple hidden>
+<input type="file" id="detailImgInput" accept="image/*" multiple hidden>
+<div id="lightbox" role="dialog" aria-label="查看大图"><img alt="放大的图片"></div>
 
 <script>
 "use strict";
@@ -361,29 +402,77 @@ var SCHOOL_211 = [
   "中南财经政法", "西南财经", "空军军医", "海军军医", "第四军医", "第二军医"
 ];
 
-var state = load();
+var state = null; // 异步加载后赋值
 
-function load() {
+function normalize(s) {
+  if (!s || typeof s !== "object") {
+    s = { settings: null, candidates: [], settingsVersion: SETTINGS_VERSION };
+  }
+  if ((s.settingsVersion || 1) < SETTINGS_VERSION) {
+    // 维度有变化：套用新的默认标准，候选人数据原样保留
+    s.settings = null;
+    s.settingsVersion = SETTINGS_VERSION;
+  }
+  s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
+  s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
+  s.candidates = (s.candidates || []).map(function (c) {
+    return Object.assign({
+      resumeImgs: [], chatImgs: [], ratePatience: 0, rateImpression: 0
+    }, c);
+  });
+  return s;
+}
+
+/* 图片较大，主存储用 IndexedDB；不可用时退回 localStorage */
+var DB_NAME = "jiajiao-db", DB_STORE = "kv";
+
+function idbOpen() {
+  return new Promise(function (resolve, reject) {
+    var req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = function () { req.result.createObjectStore(DB_STORE); };
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error); };
+  });
+}
+
+function idbGet(key) {
+  return idbOpen().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(DB_STORE).objectStore(DB_STORE).get(key);
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
+function idbSet(key, val) {
+  return idbOpen().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var req = db.transaction(DB_STORE, "readwrite").objectStore(DB_STORE).put(val, key);
+      req.onsuccess = function () { resolve(); };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
+function loadFromLocalStorage() {
   try {
     var raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      var s = JSON.parse(raw);
-      if ((s.settingsVersion || 1) < SETTINGS_VERSION) {
-        // 维度有变化：套用新的默认标准，候选人数据原样保留
-        s.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-        s.settingsVersion = SETTINGS_VERSION;
-      }
-      s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
-      s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
-      s.candidates = s.candidates || [];
-      return s;
-    }
+    if (raw) return JSON.parse(raw);
   } catch (e) { /* 损坏则重置 */ }
-  return { settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), candidates: [], settingsVersion: SETTINGS_VERSION };
+  return null;
+}
+
+function loadState() {
+  return idbGet(STORE_KEY)
+    .then(function (s) { return normalize(s || loadFromLocalStorage()); })
+    .catch(function () { return normalize(loadFromLocalStorage()); });
 }
 
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式下忽略 */ }
+  idbSet(STORE_KEY, JSON.parse(JSON.stringify(state))).catch(function () {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式下忽略 */ }
+  });
 }
 
 /* ---------------- 打分引擎 ---------------- */
@@ -570,9 +659,25 @@ var PROACTIVE = ["试讲", "试课", "免费试", "方便的时间", "什么时�
   "耐心", "细心", "慢慢讲", "不着急", "鼓励", "讲题思路", "错题"];
 var NEGATIVE = ["涨价", "加价", "临时有事", "取消", "改时间", "迟到", "先交", "先付", "转账给我", "催一下"];
 
-function scoreComm(chat, ev) {
+function scoreComm(chat, cand, ev) {
+  // 人工打星（看聊天截图后评的耐心/印象）优先于文字自动分析
+  var stars = [];
+  if (cand.ratePatience > 0) stars.push(cand.ratePatience);
+  if (cand.rateImpression > 0) stars.push(cand.rateImpression);
+  if (stars.length) {
+    var manual = Math.round(stars.reduce(function (a, b) { return a + b; }, 0) / stars.length * 20);
+    ev.push({
+      dim: "comm", tag: "人工评分 " + manual,
+      snip: "耐心 " + (cand.ratePatience || "未评") + " 星 / 印象 " + (cand.rateImpression || "未评") + " 星（人工打星优先于文字自动分析）",
+      neg: false
+    });
+    return { score: manual };
+  }
   if (!chat.trim()) {
-    ev.push({ dim: "comm", tag: "无聊天记录", snip: "没有粘贴聊天记录，按 50 分中性计", neg: false });
+    var tip = (cand.chatImgs && cand.chatImgs.length)
+      ? "已传 " + cand.chatImgs.length + " 张聊天截图——点开截图看完后在下方打「耐心/印象」星，就会计入沟通分"
+      : "没有聊天记录，按 50 分中性计；可上传截图后人工打星";
+    ev.push({ dim: "comm", tag: "待人工评分", snip: tip, neg: false });
     return { score: 50 };
   }
   var score = 50;
@@ -611,7 +716,7 @@ function evaluate(cand, settings) {
   var edu = scoreEdu(resume, all, ev);
   var exp = scoreExp(all, settings, ev);
   var subj = scoreSubj(all, settings, ev);
-  var comm = scoreComm(chat, ev);
+  var comm = scoreComm(chat, cand, ev);
   var price = scorePrice(all, settings, ev);
   var local = scoreLocal(all, ev);
 
@@ -662,8 +767,14 @@ function renderStats(results) {
 
 function chipRow(r) {
   var chips = [];
+  var c = r.cand;
   for (var t = 0; t < r.localTags.length; t++) chips.push('<span class="chip tier">' + esc(r.localTags[t]) + "</span>");
   if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
+  if (c.ratePatience || c.rateImpression) {
+    chips.push('<span class="chip">耐心' + (c.ratePatience || "—") + "★ 印象" + (c.rateImpression || "—") + "★</span>");
+  } else if (c.chatImgs.length) {
+    chips.push('<span class="chip todo">📷 截图待打星</span>');
+  }
   if (r.years) chips.push('<span class="chip">' + r.years + "年经验</span>");
   if (r.rate) chips.push('<span class="chip">' + r.rate + " 元/时</span>");
   if (r.matched.length) chips.push('<span class="chip">' + esc(r.matched.join("·")) + "</span>");
@@ -680,6 +791,31 @@ function dimRows(r) {
       '<span class="dv">' + v + "</span></div>";
   }
   return html;
+}
+
+function thumbHtml(src, alt, rmAttrs) {
+  return '<span class="thumb"><img src="' + src + '" alt="' + esc(alt) + '" data-full="1">' +
+    (rmAttrs ? '<button class="rm" ' + rmAttrs + ' aria-label="删除这张图片">×</button>' : "") + "</span>";
+}
+
+function gallery(c, kind, label) {
+  var arr = kind === "resume" ? c.resumeImgs : c.chatImgs;
+  var thumbs = arr.map(function (src, i) {
+    return thumbHtml(src, label + (i + 1), 'data-act="delimg" data-kind="' + kind + '" data-idx="' + i + '"');
+  }).join("");
+  return '<div class="field-row"><label class="f">' + label + "（" + arr.length + " 张，点图放大）</label>" +
+    '<div class="thumbs">' + thumbs + "</div>" +
+    '<button type="button" class="upl" data-act="addimg" data-kind="' + kind + '" style="margin-top:8px">＋ 添加' + label + "</button></div>";
+}
+
+function starRow(c, key, label) {
+  var v = c[key] || 0;
+  var btns = "";
+  for (var i = 1; i <= 5; i++) {
+    btns += '<button type="button" class="' + (i <= v ? "on" : "") + '" data-act="rate" data-key="' + key +
+      '" data-v="' + i + '" aria-label="' + label + i + '星" aria-pressed="' + (i <= v) + '">★</button>';
+  }
+  return '<div class="rate-row"><span class="rl">' + label + '</span><div class="stars">' + btns + "</div></div>";
 }
 
 function eviRows(r) {
@@ -713,6 +849,14 @@ function renderList(results) {
       '<div class="dims">' + dimRows(r) + "</div>" +
       eviRows(r) +
       '<div class="detail-cols" style="margin-top:12px">' +
+      gallery(c, "resume", "简历图片") +
+      gallery(c, "chat", "聊天截图") +
+      "</div>" +
+      '<div class="manual-block"><label class="f">人工评价：看完聊天截图后打星，计入「沟通表现」维度（再点一次同一颗星可取消）</label>' +
+      starRow(c, "ratePatience", "耐心") +
+      starRow(c, "rateImpression", "印象（人怎么样）") +
+      "</div>" +
+      '<div class="detail-cols" style="margin-top:12px">' +
       '<details class="rawbox"><summary>查看简历原文</summary><pre>' + esc(c.resume || "（空）") + "</pre></details>" +
       '<details class="rawbox"><summary>查看聊天记录原文</summary><pre>' + esc(c.chat || "（空）") + "</pre></details>" +
       "</div>" +
@@ -737,9 +881,14 @@ function compute() {
 }
 
 function render() {
+  var openIds = Array.prototype.map.call(document.querySelectorAll(".cand[open]"), function (el) { return el.dataset.id; });
   var results = compute();
   renderStats(results);
   renderList(results);
+  openIds.forEach(function (id) {
+    var el = document.querySelector('.cand[data-id="' + id + '"]');
+    if (el) el.open = true;
+  });
 }
 
 /* ---------------- 设置表单 ---------------- */
@@ -775,12 +924,94 @@ function bindSettings() {
   });
 }
 
+/* ---------------- 图片处理 ---------------- */
+
+function compressImage(file) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      var max = 2000; // 长截图也要保证文字可读
+      var scale = Math.min(1, max / Math.max(img.width, img.height));
+      var cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("图片无法读取")); };
+    img.src = url;
+  });
+}
+
+function imageFilesToDataUrls(fileList, done) {
+  var files = Array.prototype.slice.call(fileList).filter(function (f) { return /^image\//.test(f.type); });
+  if (!files.length) return;
+  Promise.all(files.map(compressImage)).then(done, function () { alert("有图片无法读取，请换一张试试。"); });
+}
+
+/* 表单里待添加的图片 */
+var pendImgs = { resume: [], chat: [] };
+
+function renderPendThumbs(kind) {
+  var box = $(kind === "resume" ? "resumeThumbs" : "chatThumbs");
+  box.innerHTML = pendImgs[kind].map(function (src, i) {
+    return thumbHtml(src, "待添加图片" + (i + 1), 'data-pend="' + kind + '" data-idx="' + i + '"');
+  }).join("");
+}
+
+function bindImageInputs() {
+  $("resumeImgBtn").addEventListener("click", function () { $("resumeImgInput").click(); });
+  $("chatImgBtn").addEventListener("click", function () { $("chatImgInput").click(); });
+  [["resumeImgInput", "resume"], ["chatImgInput", "chat"]].forEach(function (pair) {
+    $(pair[0]).addEventListener("change", function () {
+      var input = this;
+      imageFilesToDataUrls(input.files, function (urls) {
+        pendImgs[pair[1]] = pendImgs[pair[1]].concat(urls);
+        renderPendThumbs(pair[1]);
+        input.value = "";
+      });
+    });
+  });
+  // 把截图直接粘贴进文字框
+  [["cResume", "resume"], ["cChat", "chat"]].forEach(function (pair) {
+    $(pair[0]).addEventListener("paste", function (e) {
+      if (e.clipboardData && e.clipboardData.files.length) {
+        e.preventDefault();
+        imageFilesToDataUrls(e.clipboardData.files, function (urls) {
+          pendImgs[pair[1]] = pendImgs[pair[1]].concat(urls);
+          renderPendThumbs(pair[1]);
+        });
+      }
+    });
+  });
+  // 删除待添加的图片
+  document.addEventListener("click", function (e) {
+    if (e.target.dataset.pend) {
+      var kind = e.target.dataset.pend;
+      pendImgs[kind].splice(Number(e.target.dataset.idx), 1);
+      renderPendThumbs(kind);
+    } else if (e.target.dataset.full) {
+      var lb = $("lightbox");
+      lb.querySelector("img").src = e.target.src;
+      lb.classList.add("show");
+    }
+  });
+  $("lightbox").addEventListener("click", function () { this.classList.remove("show"); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") $("lightbox").classList.remove("show");
+  });
+}
+
 /* ---------------- 候选人操作 ---------------- */
 
-function addCandidate(name, resume, chat) {
+function addCandidate(name, resume, chat, resumeImgs, chatImgs) {
   state.candidates.push({
     id: "c" + Date.now() + Math.random().toString(36).slice(2, 7),
     name: name, resume: resume, chat: chat,
+    resumeImgs: resumeImgs || [], chatImgs: chatImgs || [],
+    ratePatience: 0, rateImpression: 0,
     status: "pending", notes: "", createdAt: new Date().toISOString()
   });
 }
@@ -791,10 +1022,15 @@ function bindActions() {
     var resume = $("cResume").value.trim();
     var chat = $("cChat").value.trim();
     if (!name) { $("addMsg").textContent = "请先填姓名/称呼"; return; }
-    if (!resume && !chat) { $("addMsg").textContent = "简历和聊天记录至少填一项"; return; }
-    addCandidate(name, resume, chat);
+    if (!resume && !chat && !pendImgs.resume.length && !pendImgs.chat.length) {
+      $("addMsg").textContent = "简历、聊天记录、图片至少要有一项"; return;
+    }
+    addCandidate(name, resume, chat, pendImgs.resume, pendImgs.chat);
+    var hadChatImgs = pendImgs.chat.length > 0;
     $("cName").value = ""; $("cResume").value = ""; $("cChat").value = "";
-    $("addMsg").textContent = "已添加「" + name + "」";
+    pendImgs = { resume: [], chat: [] };
+    renderPendThumbs("resume"); renderPendThumbs("chat");
+    $("addMsg").textContent = "已添加「" + name + "」" + (hadChatImgs ? "——点开该候选人查看截图并打「耐心/印象」星" : "");
     save(); render();
   });
 
@@ -825,14 +1061,47 @@ function bindActions() {
     }
   });
 
+  var detailImgTarget = null; // {id, kind}
+
   $("candList").addEventListener("click", function (e) {
-    if (e.target.dataset.act !== "del") return;
+    var act = e.target.dataset.act;
+    if (!act) return;
     var box = e.target.closest(".cand");
+    if (!box) return;
     var cand = state.candidates.find(function (c) { return c.id === box.dataset.id; });
-    if (cand && confirm("确定删除「" + cand.name + "」？此操作不可恢复。")) {
-      state.candidates = state.candidates.filter(function (c) { return c.id !== cand.id; });
+    if (!cand) return;
+    if (act === "del") {
+      if (confirm("确定删除「" + cand.name + "」？此操作不可恢复。")) {
+        state.candidates = state.candidates.filter(function (c) { return c.id !== cand.id; });
+        save(); render();
+      }
+    } else if (act === "rate") {
+      var key = e.target.dataset.key, v = Number(e.target.dataset.v);
+      cand[key] = (cand[key] === v) ? 0 : v; // 点同一颗星取消
       save(); render();
+    } else if (act === "delimg") {
+      var kind = e.target.dataset.kind;
+      var arr = kind === "resume" ? cand.resumeImgs : cand.chatImgs;
+      arr.splice(Number(e.target.dataset.idx), 1);
+      save(); render();
+    } else if (act === "addimg") {
+      detailImgTarget = { id: cand.id, kind: e.target.dataset.kind };
+      $("detailImgInput").click();
     }
+  });
+
+  $("detailImgInput").addEventListener("change", function () {
+    var input = this;
+    if (!detailImgTarget) return;
+    var cand = state.candidates.find(function (c) { return c.id === detailImgTarget.id; });
+    if (!cand) return;
+    var kind = detailImgTarget.kind;
+    imageFilesToDataUrls(input.files, function (urls) {
+      var arr = kind === "resume" ? cand.resumeImgs : cand.chatImgs;
+      arr.push.apply(arr, urls);
+      input.value = "";
+      save(); render();
+    });
   });
 
   $("filterStatus").addEventListener("change", render);
@@ -857,9 +1126,7 @@ function bindActions() {
       try {
         var s = JSON.parse(reader.result);
         if (!s || !Array.isArray(s.candidates)) throw new Error("bad");
-        s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
-        s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
-        state = s;
+        state = normalize(s);
         save(); renderSettingsForm(); render();
         alert("已导入 " + state.candidates.length + " 位候选人");
       } catch (err) { alert("导入失败：文件格式不对，请选择本工具导出的备份文件。"); }
@@ -870,10 +1137,11 @@ function bindActions() {
 
   $("exportCsv").addEventListener("click", function () {
     var results = compute();
-    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "湖南应届分", "科目分", "沟通分", "学历分", "经验分", "价格分", "红旗", "备注"];
+    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "耐心(星)", "印象(星)", "湖南应届分", "科目分", "沟通分", "学历分", "经验分", "价格分", "红旗", "备注"];
     var rows = results.map(function (r, i) {
       var c = r.cand;
       return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
+        c.ratePatience || "", c.rateImpression || "",
         r.dims.local, r.dims.subj, r.dims.comm, r.dims.edu, r.dims.exp, r.dims.price,
         r.flags.join("、"), c.notes || ""];
     });
@@ -930,11 +1198,15 @@ var DEMO = [
 
 /* ---------------- 启动 ---------------- */
 
-renderSettingsForm();
-bindSettings();
-bindActions();
-if (!state.candidates.length) { $("settingsCard").open = true; }
-render();
+loadState().then(function (s) {
+  state = s;
+  renderSettingsForm();
+  bindSettings();
+  bindActions();
+  bindImageInputs();
+  if (!state.candidates.length) { $("settingsCard").open = true; }
+  render();
+});
 </script>
 </body>
 </html>
