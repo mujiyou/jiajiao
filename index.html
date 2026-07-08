@@ -525,14 +525,25 @@ function scoreEdu(resume, all, ev) {
   return { score: clamp(score, 0, 100), tier: tier };
 }
 
+function matchOwnLocation(all, re) {
+  // 跳过「您在长沙 / 看你湖南」这类说的是学生方而非老师本人的地名
+  var m;
+  while ((m = re.exec(all)) !== null) {
+    var prefix = all.slice(Math.max(0, m.index - 3), m.index);
+    if (/[您你]/.test(prefix)) continue;
+    return m;
+  }
+  return null;
+}
+
 function scoreLocal(all, ev) {
   var score = 30, tags = [];
-  var hn = all.match(/(湖南\D{0,8}高考|高考\D{0,8}湖南|湖南考生|湖南参加|在湘高考)/);
+  var hn = matchOwnLocation(all, /(湖南\D{0,8}高考|高考\D{0,8}湖南|湖南考生|湖南参加|在湘高考)/g);
   if (hn) {
     score += 35; tags.push("湖南高考");
     ev.push({ dim: "local", tag: "湖南高考 +35", snip: snippet(all, hn.index, hn[0].length), neg: false });
   } else {
-    var hn2 = all.match(/(湖南|长沙|长郡|雅礼|师大附中|长沙市一中|明德中学|周南中学|麓山国际|南雅中学|湘潭|株洲|岳阳|衡阳|常德|郴州|益阳|娄底|怀化|永州|邵阳|张家界|湘西)/);
+    var hn2 = matchOwnLocation(all, /(湖南|长沙|长郡|雅礼|师大附中|长沙市一中|明德中学|周南中学|麓山国际|南雅中学|湘潭|株洲|岳阳|衡阳|常德|郴州|益阳|娄底|怀化|永州|邵阳|张家界|湘西)/g);
     if (hn2) {
       score += 25; tags.push("湖南");
       ev.push({ dim: "local", tag: "湖南本地 +25", snip: snippet(all, hn2.index, hn2[0].length), neg: false });
@@ -598,28 +609,63 @@ function scoreExp(all, settings, ev) {
   return { score: clamp(score, 0, 100), years: years };
 }
 
+var SUBJECT_WORDS = ["数学", "物理", "化学", "生物", "英语", "语文", "地理", "历史", "政治", "科学", "奥数"];
+
 function scoreSubj(all, settings, ev) {
   var words = splitWords(settings.subjects);
   if (!words.length) {
     ev.push({ dim: "subj", tag: "未设置科目", snip: "在「筛选标准」里填写科目后此项才生效，当前按 60 分中性计", neg: false });
     return { score: 60, matched: [] };
   }
-  var hits = findAll(all, words);
-  var matched = hits.map(function (h) { return h.word; });
-  for (var i = 0; i < hits.length; i++) {
-    ev.push({ dim: "subj", tag: "匹配「" + hits[i].word + "」", snip: snippet(all, hits[i].idx, hits[i].word.length), neg: false });
+  // 「只辅导物理 / 只教英语」这类明确限定：其他科目即使在简历里出现过也不算匹配
+  var onlyM = all.match(/(?:只|仅)(?:能)?(?:辅导|教|带|上|接)\s*([一-龥、和及与\s]{1,20}?)(?=[，,。.\n！!；;：:]|$)/);
+  var onlyList = onlyM ? onlyM[1] : null;
+  var matched = [], missed = [];
+  for (var i = 0; i < words.length; i++) {
+    var word = words[i];
+    var idx = all.indexOf(word);
+    if (idx < 0) { missed.push(word); continue; }
+    var subjPart = null;
+    for (var s = 0; s < SUBJECT_WORDS.length; s++) {
+      if (word.indexOf(SUBJECT_WORDS[s]) >= 0) { subjPart = SUBJECT_WORDS[s]; break; }
+    }
+    if (subjPart && onlyList && onlyList.indexOf(subjPart) < 0) {
+      ev.push({
+        dim: "subj", tag: "「" + word + "」不算匹配",
+        snip: snippet(all, onlyM.index, onlyM[0].length) + "——明确限定了科目，别处提到的" + word + "不计入",
+        neg: true
+      });
+      missed.push(word);
+      continue;
+    }
+    matched.push(word);
+    ev.push({ dim: "subj", tag: "匹配「" + word + "」", snip: snippet(all, idx, word.length), neg: false });
   }
-  if (!hits.length) ev.push({ dim: "subj", tag: "未提及所需科目", snip: "简历里没找到：" + words.join("、"), neg: true });
-  return { score: Math.round(100 * hits.length / words.length), matched: matched };
+  if (!matched.length) ev.push({ dim: "subj", tag: "未提及所需科目", snip: "简历里没找到：" + words.join("、"), neg: true });
+  return { score: Math.round(100 * matched.length / words.length), matched: matched };
 }
 
 function extractRate(all) {
-  var m = all.match(/(\d{2,4})\s*(?:元|块|¥)?\s*(?:\/|每|一)\s*(?:小时|时|h|H|节|课时)/) ||
-          all.match(/(?:时薪|课时费|价格|收费|费用)\D{0,6}(\d{2,4})/);
-  if (!m) return null;
-  var v = parseInt(m[1], 10);
-  if (v < 20 || v > 3000) return null;
-  return { rate: v, idx: m.index, len: m[0].length };
+  // 分学段报价（初中120/高一高二140……）时，优先取高一/高二/高中上下文里的那个
+  var re = /(\d{2,4})\s*(?:元|块|¥)?\s*(?:\/|每|一)\s*(?:小时|时|h|H|节|课时)/g;
+  var m, list = [];
+  while ((m = re.exec(all)) !== null) {
+    var v = parseInt(m[1], 10);
+    if (v >= 20 && v <= 3000) list.push({ rate: v, idx: m.index, len: m[0].length });
+  }
+  if (!list.length) {
+    var m2 = all.match(/(?:时薪|课时费|价格|收费|费用)\D{0,6}(\d{2,4})/);
+    if (m2) {
+      var v2 = parseInt(m2[1], 10);
+      if (v2 >= 20 && v2 <= 3000) return { rate: v2, idx: m2.index, len: m2[0].length };
+    }
+    return null;
+  }
+  for (var i = 0; i < list.length; i++) {
+    var ctx = all.slice(Math.max(0, list[i].idx - 10), list[i].idx);
+    if (/高[一二]|高中/.test(ctx)) return list[i];
+  }
+  return list[0];
 }
 
 function scorePrice(all, settings, ev) {
@@ -964,6 +1010,9 @@ function extractName(resume) {
   // 2. 「我叫XXX」
   m = text.match(/我叫\s*([一-龥·]{2,4})/);
   if (m && looksLikeName(m[1])) return m[1];
+  // 2.5 「我姓周 / 本人姓周 / 免贵姓周」
+  m = text.match(/(?:我|本人|免贵)姓\s*([一-龥])/);
+  if (m && SURNAMES.indexOf(m[1]) >= 0) return m[1] + "老师";
   // 3. 「王老师 / 李同学」这类称呼
   m = text.match(/([一-龥]{1,2})(老师|同学)/);
   if (m) {
