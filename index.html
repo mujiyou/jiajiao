@@ -222,6 +222,9 @@ button.upl { font-size: 13px; padding: 5px 10px; }
 .stars button.on { color: var(--warn); }
 .rate-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; flex-wrap: wrap; }
 .rate-row .rl { font-size: 13px; color: var(--ink-soft); min-width: 8.5em; }
+.tnums { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.tnums button { width: 34px; height: 30px; padding: 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.tnums button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 .manual-block { margin-top: 12px; padding: 10px 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
 .chip.todo { background: var(--warn-soft); color: var(--warn); border-color: transparent; font-weight: 600; }
 #lightbox {
@@ -295,20 +298,30 @@ button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color
   </details>
 
   <section class="card">
-    <div class="card-head"><h2>添加候选人</h2><span class="hint">简历可粘贴文字或上传图片；耐心和人品在微信里看，回来给候选人打星</span></div>
+    <div class="card-head"><h2>添加候选人</h2><span class="hint">上传简历截图自动识别打分（或粘贴文字）；耐心和人品在微信里看，回来打星；试完课再打 10 分制试课分</span></div>
     <div class="card-body">
-      <div class="field-row">
-        <label class="f" for="cName">姓名 / 称呼（自动从简历里识别，认错了再手动改）</label>
-        <input type="text" id="cName" placeholder="粘贴简历后自动填写">
+      <div class="grid2">
+        <div class="field-row">
+          <label class="f" for="cName">姓名 / 称呼（自动从简历里识别，认错了再手动改）</label>
+          <input type="text" id="cName" placeholder="粘贴简历后自动填写">
+        </div>
+        <div class="field-row">
+          <label class="f" for="cWechat">微信名（自动从聊天格式里识别，可修改）</label>
+          <input type="text" id="cWechat" placeholder="粘贴简历后自动填写">
+        </div>
       </div>
+      <p class="hint" style="margin:0 0 14px">上传截图后会自动识别文字、姓名和微信名。没网时的替代办法：在微信里长按截图 →「提取文字」→ 复制粘贴到文字框。</p>
       <div class="field-row">
-        <label class="f" for="cResume">简历 · 方式一：粘贴文字（能自动打分）</label>
-        <textarea id="cResume" placeholder="学校、学历、高考分数、家教经验、报价……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
-        <div class="btn-row" style="margin-top:8px">
-          <button type="button" class="upl" id="resumeImgBtn">方式二：上传简历图片</button>
-          <span class="hint">图片供人工查看，学校/分数等关键信息请尽量补成文字</span>
+        <label class="f">简历 · 方式一：上传截图，自动识别文字并打分（推荐）</label>
+        <div class="btn-row">
+          <button type="button" class="primary" id="resumeImgBtn">上传简历/聊天截图</button>
+          <span class="hint" id="ocrMsg" role="status">可多张；首次使用需联网加载一次识别引擎</span>
         </div>
         <div class="thumbs" id="resumeThumbs"></div>
+      </div>
+      <div class="field-row">
+        <label class="f" for="cResume">简历 · 方式二：粘贴文字（截图的识别结果也会出现在这里，识别错的字可直接改）</label>
+        <textarea id="cResume" placeholder="学校、学历、高考分数、家教经验、报价……（截图直接 Ctrl+V 粘到这里也行）"></textarea>
       </div>
       <div class="btn-row">
         <button class="primary" id="addBtn">添加并打分</button>
@@ -415,7 +428,7 @@ function normalize(s) {
   s.settings.weights = Object.assign({}, DEFAULT_SETTINGS.weights, s.settings.weights || {});
   s.candidates = (s.candidates || []).map(function (c) {
     return Object.assign({
-      resumeImgs: [], ratePatience: 0, rateImpression: 0
+      resumeImgs: [], ratePatience: 0, rateImpression: 0, trialScore: 0, wechat: ""
     }, c);
   });
   return s;
@@ -736,15 +749,26 @@ function evaluate(cand, settings) {
 
   var dims = { local: local.score, subj: subj.score, comm: comm.score, edu: edu.score, exp: exp.score, price: price.score };
   var w = settings.weights;
-  var wSum = 0, total = 0;
+  var wSum = 0, resumeTotal = 0;
   for (var k in dims) { wSum += (Number(w[k]) || 0); }
   if (wSum <= 0) wSum = 1;
-  for (var k2 in dims) { total += dims[k2] * (Number(w[k2]) || 0) / wSum; }
-  total = Math.round(total);
-  if (flags.length) total = Math.max(0, total - 15 * flags.length);
+  for (var k2 in dims) { resumeTotal += dims[k2] * (Number(w[k2]) || 0) / wSum; }
+  resumeTotal = Math.round(resumeTotal);
+  if (flags.length) resumeTotal = Math.max(0, resumeTotal - 15 * flags.length);
+
+  // 试过课的：总分 = 试课分 70% + 简历综合 30%
+  var total = resumeTotal;
+  if (cand.trialScore > 0) {
+    total = Math.round(cand.trialScore * 10 * 0.7 + resumeTotal * 0.3);
+    ev.push({
+      dim: "trial", tag: "试课 " + cand.trialScore + "/10",
+      snip: "总分 = 试课 " + (cand.trialScore * 10) + " 分 ×70% + 简历综合 " + resumeTotal + " 分 ×30% = " + total,
+      neg: false
+    });
+  }
 
   return {
-    total: total, dims: dims, evidence: ev, flags: flags,
+    total: total, resumeTotal: resumeTotal, dims: dims, evidence: ev, flags: flags,
     tier: edu.tier, years: exp.years, rate: price.rate, matched: subj.matched, localTags: local.tags
   };
 }
@@ -801,8 +825,10 @@ function renderStats(results) {
 function chipRow(r) {
   var chips = [];
   var c = r.cand;
+  if (c.wechat) chips.push('<span class="chip">微信：' + esc(c.wechat) + "</span>");
   for (var t = 0; t < r.localTags.length; t++) chips.push('<span class="chip tier">' + esc(r.localTags[t]) + "</span>");
   if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
+  if (c.trialScore) chips.push('<span class="chip tier">试课 ' + c.trialScore + "/10</span>");
   if (c.ratePatience || c.rateImpression) {
     chips.push('<span class="chip">耐心' + (c.ratePatience || "—") + "★ 印象" + (c.rateImpression || "—") + "★</span>");
   } else {
@@ -839,6 +865,19 @@ function gallery(c, kind, label) {
   return '<div class="field-row"><label class="f">' + label + "（" + arr.length + " 张，点图放大）</label>" +
     '<div class="thumbs">' + thumbs + "</div>" +
     '<button type="button" class="upl" data-act="addimg" style="margin-top:8px">＋ 添加' + label + "</button></div>";
+}
+
+function trialBlock(c, r) {
+  var btns = "";
+  for (var i = 1; i <= 10; i++) {
+    btns += '<button type="button" class="' + (c.trialScore === i ? "on" : "") + '" data-act="trial" data-v="' + i +
+      '" aria-label="试课' + i + '分" aria-pressed="' + (c.trialScore === i) + '">' + i + "</button>";
+  }
+  var note = c.trialScore
+    ? "当前总分 = 试课 " + (c.trialScore * 10) + "×70% + 简历综合 " + r.resumeTotal + "×30% = " + r.total
+    : "还没试课打分，当前按简历综合分 " + r.resumeTotal + " 排名";
+  return '<div class="manual-block"><label class="f">试课打分（满分 10 分；打分后总分 = 试课 70% + 简历 30%，再点同一个数字可取消）</label>' +
+    '<div class="tnums">' + btns + '</div><p class="hint" style="margin:6px 0 0">' + note + "</p></div>";
 }
 
 function starRow(c, key, label) {
@@ -885,11 +924,14 @@ function renderList(results) {
       starRow(c, "ratePatience", "耐心") +
       starRow(c, "rateImpression", "印象（人怎么样）") +
       "</div>" +
+      trialBlock(c, r) +
       '<div class="detail-cols" style="margin-top:12px">' +
       gallery(c, "resume", "简历图片") +
       '<details class="rawbox"><summary>查看简历原文</summary><pre>' + esc(c.resume || "（空）") + "</pre></details>" +
       "</div>" +
-      '<div class="status-row"><label class="f" style="margin:0">状态：</label>' +
+      '<div class="status-row"><label class="f" style="margin:0">微信名：</label>' +
+      '<input type="text" data-act="wechat" value="' + esc(c.wechat || "") + '" placeholder="未识别" style="width:10em">' +
+      '<label class="f" style="margin:0">状态：</label>' +
       '<select data-act="status">' +
       Object.keys(STATUS_LABELS).map(function (k) {
         return '<option value="' + k + '"' + (c.status === k ? " selected" : "") + ">" + STATUS_LABELS[k] + "</option>";
@@ -980,6 +1022,88 @@ function imageFilesToDataUrls(fileList, done) {
   Promise.all(files.map(compressImage)).then(done, function () { toast("有图片无法读取，请换一张试试"); });
 }
 
+/* ---------------- 截图文字识别（OCR，联网加载引擎） ---------------- */
+
+var OCR_SOURCES = window.OCR_SOURCES_OVERRIDE || [
+  { // 国内可直连的 npm 镜像（阿里）
+    lib: "https://registry.npmmirror.com/tesseract.js/5.1.1/files/dist/tesseract.min.js",
+    worker: "https://registry.npmmirror.com/tesseract.js/5.1.1/files/dist/worker.min.js",
+    core: "https://registry.npmmirror.com/tesseract.js-core/5.1.1/files",
+    lang: "https://registry.npmmirror.com/@tesseract.js-data/chi_sim/1.0.0/files/4.0.0"
+  },
+  { // 备用源
+    lib: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+    worker: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+    core: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+    lang: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/chi_sim@1.0.0/4.0.0"
+  }
+];
+
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = function () { s.remove(); reject(new Error("脚本加载失败")); };
+    document.head.appendChild(s);
+  });
+}
+
+var ocrWorkerPromise = null;
+
+function getOcrWorker(onStatus) {
+  if (ocrWorkerPromise) return ocrWorkerPromise;
+  function trySource(i) {
+    if (i >= OCR_SOURCES.length) return Promise.reject(new Error("识别引擎加载失败"));
+    var src = OCR_SOURCES[i];
+    return loadScript(src.lib).then(function () {
+      return Tesseract.createWorker("chi_sim", 1, {
+        workerPath: src.worker,
+        corePath: src.core,
+        langPath: src.lang,
+        cacheMethod: "none",
+        logger: function (m) {
+          if (m.progress && m.status && /load|download/i.test(m.status)) {
+            onStatus("正在加载识别引擎 " + Math.round(m.progress * 100) + "%…");
+          }
+        }
+      });
+    }).catch(function () { return trySource(i + 1); });
+  }
+  onStatus("正在加载识别引擎…（首次约 5MB，之后每张几秒）");
+  ocrWorkerPromise = trySource(0);
+  ocrWorkerPromise.catch(function () { ocrWorkerPromise = null; }); // 失败后允许重试
+  return ocrWorkerPromise;
+}
+
+function cleanOcrText(t) {
+  // 中文识别常在字间插入空格：只要空格贴着汉字/中文标点，就去掉
+  return String(t || "")
+    .replace(/([⺀-鿿！-～　-〿])[ \t]+/g, "$1")
+    .replace(/[ \t]+([⺀-鿿！-～　-〿])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/* 逐张识别图片（File 对象或 dataURL 均可），statusCb 汇报进度，resolve 出识别文本数组 */
+function ocrImages(images, statusCb) {
+  return getOcrWorker(statusCb).then(function (worker) {
+    var texts = [];
+    function next(i) {
+      if (i >= images.length) return texts;
+      statusCb("正在识别第 " + (i + 1) + "/" + images.length + " 张截图…");
+      return worker.recognize(images[i]).then(
+        function (res) { texts.push(cleanOcrText(res.data.text)); return next(i + 1); },
+        function () { texts.push(""); return next(i + 1); }
+      );
+    }
+    return next(0);
+  });
+}
+
+var OCR_FAIL_TIP = "识别引擎加载失败（需要联网）——替代办法：微信里长按截图「提取文字」，粘贴到文字框";
+
 /* 表单里待添加的简历图片 */
 var pendResumeImgs = [];
 
@@ -989,24 +1113,55 @@ function renderPendThumbs() {
   }).join("");
 }
 
+/* 姓名/微信名联动：只覆盖空白或上次自动填的值，手动改过就不再动 */
+function syncAutoField(id, value) {
+  var box = $(id);
+  if (box.value && box.dataset.auto !== "1") return;
+  if (value) { box.value = value; box.dataset.auto = "1"; }
+  else if (box.dataset.auto === "1") { box.value = ""; box.dataset.auto = ""; }
+}
+
+function syncAutoFields() {
+  var resume = $("cResume").value;
+  syncAutoField("cName", extractName(resume));
+  syncAutoField("cWechat", extractWechat(resume));
+}
+
+/* 上传/粘贴的截图：存压缩图 + 用原图自动识别文字追加到简历框（原图识别更准） */
+function intakeResumeImages(fileList) {
+  var files = Array.prototype.slice.call(fileList).filter(function (f) { return /^image\//.test(f.type); });
+  if (!files.length) return;
+  imageFilesToDataUrls(files, function (urls) {
+    pendResumeImgs = pendResumeImgs.concat(urls);
+    renderPendThumbs();
+    var msg = $("ocrMsg");
+    ocrImages(files, function (t) { msg.textContent = t; }).then(function (texts) {
+      var joined = texts.filter(Boolean).join("\n");
+      if (joined) {
+        var box = $("cResume");
+        box.value = (box.value ? box.value + "\n" : "") + joined;
+        syncAutoFields();
+        msg.textContent = "识别完成——请核对文字框内容，认错的字直接改";
+      } else {
+        msg.textContent = "没识别出文字，请检查截图是否清晰，或用微信「提取文字」后粘贴";
+      }
+    }, function () {
+      msg.textContent = OCR_FAIL_TIP;
+    });
+  });
+}
+
 function bindImageInputs() {
   $("resumeImgBtn").addEventListener("click", function () { $("resumeImgInput").click(); });
   $("resumeImgInput").addEventListener("change", function () {
-    var input = this;
-    imageFilesToDataUrls(input.files, function (urls) {
-      pendResumeImgs = pendResumeImgs.concat(urls);
-      renderPendThumbs();
-      input.value = "";
-    });
+    intakeResumeImages(this.files);
+    this.value = "";
   });
   // 把简历截图直接粘贴进文字框
   $("cResume").addEventListener("paste", function (e) {
     if (e.clipboardData && e.clipboardData.files.length) {
       e.preventDefault();
-      imageFilesToDataUrls(e.clipboardData.files, function (urls) {
-        pendResumeImgs = pendResumeImgs.concat(urls);
-        renderPendThumbs();
-      });
+      intakeResumeImages(e.clipboardData.files);
     }
   });
   // 删除待添加的图片
@@ -1070,15 +1225,45 @@ function extractName(resume) {
   return "";
 }
 
+/* 从微信聊天记录/截图提取文字的格式里识别微信名 */
+function extractWechat(resume) {
+  var t = String(resume || "");
+  // 1. 明确写了「微信名：X / 微信：X」
+  var m = t.match(/微信名?[：:\s]+([^\s，。,、；;]{1,20})/);
+  if (m) return m[1];
+  var counts = {};
+  function tally(name) {
+    name = name.trim();
+    if (!name || name.length > 20) return;
+    if (/(年|月|日|时间|经历|价格|收费|姓名|学历|科目|坐标|要求|辅导|备注|电话|地址)/.test(name)) return;
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  // 2. 「Gavin 2026年7月5日 23:33」——截图提取文字/聊天记录里名字和时间同行（容忍 OCR 空格）
+  var re = /^\s*(.{1,20}?)\s+20\d{2}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/gm;
+  while ((m = re.exec(t)) !== null) tally(m[1]);
+  // 3. 名字单独一行、下一行是日期
+  var re2 = /^\s*(\S{1,20})\s*\n\s*20\d{2}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/gm;
+  while ((m = re2.exec(t)) !== null) tally(m[1]);
+  var best = "", bestN = 0;
+  for (var k in counts) { if (counts[k] > bestN) { best = k; bestN = counts[k]; } }
+  if (best) return best;
+  // 4. 电脑版微信复制多条消息的「Gavin: 内容」格式——同一名字出现两次以上才认
+  var re3 = /^\s*([^：:\n]{1,20})[：:]/gm;
+  while ((m = re3.exec(t)) !== null) tally(m[1]);
+  for (var k2 in counts) { if (counts[k2] >= 2 && counts[k2] > bestN) { best = k2; bestN = counts[k2]; } }
+  return best;
+}
+
 /* ---------------- 候选人操作 ---------------- */
 
-function addCandidate(name, resume, resumeImgs, ratings) {
+function addCandidate(name, resume, resumeImgs, ratings, wechat) {
   state.candidates.push({
     id: "c" + Date.now() + Math.random().toString(36).slice(2, 7),
-    name: name, resume: resume,
+    name: name, resume: resume, wechat: wechat || "",
     resumeImgs: resumeImgs || [],
     ratePatience: (ratings && ratings.patience) || 0,
     rateImpression: (ratings && ratings.impression) || 0,
+    trialScore: 0,
     status: "pending", notes: "", createdAt: new Date().toISOString()
   });
 }
@@ -1086,29 +1271,27 @@ function addCandidate(name, resume, resumeImgs, ratings) {
 function bindActions() {
   $("addBtn").addEventListener("click", function () {
     var name = $("cName").value.trim();
+    var wechat = $("cWechat").value.trim();
     var resume = $("cResume").value.trim();
     if (!resume && !pendResumeImgs.length) {
-      $("addMsg").textContent = "请先粘贴简历文字或上传简历图片"; return;
+      $("addMsg").textContent = "请先上传简历截图或粘贴简历文字"; return;
     }
-    if (!name) name = extractName(resume) || "候选人" + (state.candidates.length + 1);
-    addCandidate(name, resume, pendResumeImgs);
+    if (!name) name = extractName(resume) || wechat || "候选人" + (state.candidates.length + 1);
+    addCandidate(name, resume, pendResumeImgs, null, wechat);
     $("cName").value = ""; $("cName").dataset.auto = "";
+    $("cWechat").value = ""; $("cWechat").dataset.auto = "";
     $("cResume").value = "";
     pendResumeImgs = [];
     renderPendThumbs();
+    $("ocrMsg").textContent = "可多张；首次使用需联网加载一次识别引擎";
     $("addMsg").textContent = "已添加「" + name + "」——看完微信聊天记得回来打「耐心/印象」星";
     save(); render();
   });
 
-  // 姓名从简历自动识别：只覆盖空白或上一次自动填的值，手动改过就不再动
-  $("cResume").addEventListener("input", function () {
-    var nameBox = $("cName");
-    if (nameBox.value && nameBox.dataset.auto !== "1") return;
-    var guess = extractName($("cResume").value);
-    if (guess) { nameBox.value = guess; nameBox.dataset.auto = "1"; }
-    else if (nameBox.dataset.auto === "1") { nameBox.value = ""; nameBox.dataset.auto = ""; }
-  });
+  // 姓名/微信名从简历自动识别，手动改过就不再覆盖
+  $("cResume").addEventListener("input", syncAutoFields);
   $("cName").addEventListener("input", function () { this.dataset.auto = ""; });
+  $("cWechat").addEventListener("input", function () { this.dataset.auto = ""; });
 
   $("batchBtn").addEventListener("click", function () {
     var blocks = $("batchText").value.split(/\n\s*====+\s*\n/).map(function (b) { return b.trim(); }).filter(Boolean);
@@ -1125,8 +1308,9 @@ function bindActions() {
         resume = b;
         name = extractName(resume);
       }
-      if (!name) name = "候选人" + (state.candidates.length + 1);
-      addCandidate(name, resume, []);
+      var wechat = extractWechat(resume);
+      if (!name) name = wechat || "候选人" + (state.candidates.length + 1);
+      addCandidate(name, resume, [], null, wechat);
       n++;
     });
     if (n) { $("batchText").value = ""; save(); render(); }
@@ -1144,6 +1328,9 @@ function bindActions() {
     } else if (e.target.dataset.act === "notes") {
       cand.notes = e.target.value;
       save();
+    } else if (e.target.dataset.act === "wechat") {
+      cand.wechat = e.target.value.trim();
+      save(); render();
     }
   });
 
@@ -1166,6 +1353,10 @@ function bindActions() {
       var key = e.target.dataset.key, v = Number(e.target.dataset.v);
       cand[key] = (cand[key] === v) ? 0 : v; // 点同一颗星取消
       save(); render();
+    } else if (act === "trial") {
+      var tv = Number(e.target.dataset.v);
+      cand.trialScore = (cand.trialScore === tv) ? 0 : tv; // 再点一次取消
+      save(); render();
     } else if (act === "delimg") {
       cand.resumeImgs.splice(Number(e.target.dataset.idx), 1);
       save(); render();
@@ -1180,10 +1371,19 @@ function bindActions() {
     if (!detailImgTarget) return;
     var cand = state.candidates.find(function (c) { return c.id === detailImgTarget; });
     if (!cand) return;
-    imageFilesToDataUrls(input.files, function (urls) {
+    var files = Array.prototype.slice.call(input.files).filter(function (f) { return /^image\//.test(f.type); });
+    imageFilesToDataUrls(files, function (urls) {
       cand.resumeImgs.push.apply(cand.resumeImgs, urls);
       input.value = "";
       save(); render();
+      ocrImages(files, toast).then(function (texts) {
+        var joined = texts.filter(Boolean).join("\n");
+        if (!joined) { toast("没识别出文字，图片已保存"); return; }
+        cand.resume = (cand.resume ? cand.resume + "\n" : "") + joined;
+        if (!cand.wechat) cand.wechat = extractWechat(cand.resume);
+        save(); render();
+        toast("已识别文字并追加到简历，分数已更新");
+      }, function () { toast("图片已保存；" + OCR_FAIL_TIP); });
     });
   });
 
@@ -1223,10 +1423,10 @@ function bindActions() {
 
   $("exportCsv").addEventListener("click", function () {
     var results = compute();
-    var head = ["排名", "姓名", "总分", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "耐心(星)", "印象(星)", "湖南应届分", "科目分", "耐心印象分", "学历分", "经验分", "价格分", "红旗", "备注"];
+    var head = ["排名", "姓名", "微信名", "总分", "试课(10分)", "简历综合", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "耐心(星)", "印象(星)", "湖南应届分", "科目分", "耐心印象分", "学历分", "经验分", "价格分", "红旗", "备注"];
     var rows = results.map(function (r, i) {
       var c = r.cand;
-      return [i + 1, c.name, r.total, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
+      return [i + 1, c.name, c.wechat || "", r.total, c.trialScore || "", r.resumeTotal, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
         c.ratePatience || "", c.rateImpression || "",
         r.dims.local, r.dims.subj, r.dims.comm, r.dims.edu, r.dims.exp, r.dims.price,
         r.flags.join("、"), c.notes || ""];
@@ -1238,7 +1438,10 @@ function bindActions() {
   });
 
   $("demoBtn").addEventListener("click", function () {
-    DEMO.forEach(function (d) { addCandidate(d.name, d.resume, [], d.stars); });
+    DEMO.forEach(function (d) {
+      addCandidate(d.name, d.resume, [], d.stars, d.wechat);
+      if (d.trial) state.candidates[state.candidates.length - 1].trialScore = d.trial;
+    });
     save(); render();
   });
 }
@@ -1262,13 +1465,17 @@ function download(filename, content, mime) {
 var DEMO = [
   {
     name: "示例·陈同学",
+    wechat: "Sunny陈",
     resume: "姓名：陈雨桐。长沙长郡中学2026届毕业生，刚参加完湖南高考，总分646分，数学138分，物理95分，已被武汉大学录取。选科物化生，暑假在长沙，可教高中数学物理，140元/小时。",
-    stars: { patience: 5, impression: 5 }
+    stars: { patience: 5, impression: 5 },
+    trial: 9
   },
   {
     name: "示例·刘老师",
+    wechat: "数学刘老师",
     resume: "湖南师范大学数学系硕士，4年家教经验，带过8名高中学生，提分明显，有教师资格证。主教高中数学，可加物理。150元/小时。",
-    stars: { patience: 4, impression: 4 }
+    stars: { patience: 4, impression: 4 },
+    trial: 7
   },
   {
     name: "示例·赵同学",
