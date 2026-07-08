@@ -230,6 +230,16 @@ button.upl { font-size: 13px; padding: 5px 10px; }
 }
 #lightbox.show { display: flex; }
 #lightbox img { max-width: 100%; max-height: 100%; border-radius: 4px; }
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); padding: 8px 18px; border-radius: 999px;
+  font-size: 14px; z-index: 60; opacity: 0; pointer-events: none; max-width: 90vw;
+}
+#toast.show { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  #toast { transition: opacity 0.25s ease; }
+}
+button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color: #fff; }
 .footer-note { color: var(--ink-soft); font-size: 12px; text-align: center; margin-top: 28px; }
 .flagbanner {
   margin: 10px 0 0; padding: 8px 12px; border-radius: 6px;
@@ -343,6 +353,7 @@ button.upl { font-size: 13px; padding: 5px 10px; }
 <input type="file" id="resumeImgInput" accept="image/*" multiple hidden>
 <input type="file" id="detailImgInput" accept="image/*" multiple hidden>
 <div id="lightbox" role="dialog" aria-label="查看大图"><img alt="放大的图片"></div>
+<div id="toast" role="status"></div>
 
 <script>
 "use strict";
@@ -748,6 +759,33 @@ function esc(s) {
 
 function $(id) { return document.getElementById(id); }
 
+/* 沙箱/内置浏览器里 confirm 和 alert 会被拦截，全部用页内提示代替 */
+var toastTimer = null;
+function toast(msg) {
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
+}
+
+function armButton(btn, armedText, normalText, onConfirm) {
+  // 两次点击确认：第一次变红提示，3 秒内再点一次才执行
+  if (btn.dataset.armed === "1") {
+    btn.dataset.armed = "";
+    onConfirm();
+    return;
+  }
+  btn.dataset.armed = "1";
+  btn.textContent = armedText;
+  setTimeout(function () {
+    if (btn.isConnected && btn.dataset.armed === "1") {
+      btn.dataset.armed = "";
+      btn.textContent = normalText;
+    }
+  }, 3000);
+}
+
 function grade(n) { return n >= 75 ? "good" : n >= 50 ? "mid" : "low"; }
 
 function renderStats(results) {
@@ -939,7 +977,7 @@ function compressImage(file) {
 function imageFilesToDataUrls(fileList, done) {
   var files = Array.prototype.slice.call(fileList).filter(function (f) { return /^image\//.test(f.type); });
   if (!files.length) return;
-  Promise.all(files.map(compressImage)).then(done, function () { alert("有图片无法读取，请换一张试试。"); });
+  Promise.all(files.map(compressImage)).then(done, function () { toast("有图片无法读取，请换一张试试"); });
 }
 
 /* 表单里待添加的简历图片 */
@@ -1092,7 +1130,7 @@ function bindActions() {
       n++;
     });
     if (n) { $("batchText").value = ""; save(); render(); }
-    alert(n ? "已导入 " + n + " 位候选人" : "没有识别到内容，请检查分隔符 ====");
+    toast(n ? "已导入 " + n + " 位候选人" : "没有识别到内容，请检查分隔符 ====");
   });
 
   $("candList").addEventListener("change", function (e) {
@@ -1119,10 +1157,11 @@ function bindActions() {
     var cand = state.candidates.find(function (c) { return c.id === box.dataset.id; });
     if (!cand) return;
     if (act === "del") {
-      if (confirm("确定删除「" + cand.name + "」？此操作不可恢复。")) {
+      armButton(e.target, "再点一次确认删除", "删除该候选人", function () {
         state.candidates = state.candidates.filter(function (c) { return c.id !== cand.id; });
         save(); render();
-      }
+        toast("已删除「" + cand.name + "」");
+      });
     } else if (act === "rate") {
       var key = e.target.dataset.key, v = Number(e.target.dataset.v);
       cand[key] = (cand[key] === v) ? 0 : v; // 点同一颗星取消
@@ -1151,10 +1190,13 @@ function bindActions() {
   $("filterStatus").addEventListener("change", render);
 
   $("clearAll").addEventListener("click", function () {
-    if (state.candidates.length && confirm("确定清空全部 " + state.candidates.length + " 位候选人？建议先导出备份。")) {
+    if (!state.candidates.length) { toast("名单已经是空的"); return; }
+    armButton(this, "确认清空全部 " + state.candidates.length + " 位？", "清空", function () {
       state.candidates = [];
       save(); render();
-    }
+      $("clearAll").textContent = "清空";
+      toast("已清空（之前导出过备份的话可随时导入恢复）");
+    });
   });
 
   $("exportJson").addEventListener("click", function () {
@@ -1172,8 +1214,8 @@ function bindActions() {
         if (!s || !Array.isArray(s.candidates)) throw new Error("bad");
         state = normalize(s);
         save(); renderSettingsForm(); render();
-        alert("已导入 " + state.candidates.length + " 位候选人");
-      } catch (err) { alert("导入失败：文件格式不对，请选择本工具导出的备份文件。"); }
+        toast("已导入 " + state.candidates.length + " 位候选人");
+      } catch (err) { toast("导入失败：文件格式不对，请选择本工具导出的备份文件"); }
     };
     reader.readAsText(f);
     this.value = "";
