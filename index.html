@@ -160,6 +160,7 @@ button:hover { filter: brightness(0.97); }
 .cand .who { min-width: 0; }
 .cand .name-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cand .name { font-weight: 700; font-size: 15px; }
+.cand .wxname { font-size: 12px; color: var(--ink-soft); background: var(--surface-2); padding: 1px 8px; border-radius: 4px; }
 .cand .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
 .chip {
   font-size: 12px; padding: 1px 8px; border-radius: 999px;
@@ -260,7 +261,7 @@ button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color
 <div class="wrap">
   <header class="site">
     <h1>家教老师筛选器</h1>
-    <p class="sub">把每位应聘老师的简历粘贴或上传进来，按你设定的标准自动打分排序，每一分都能看到依据；试课、印象、耐心由你们打分（10 分制），总分按可调权重加权。数据只保存在你自己的浏览器里，不会上传。</p>
+    <p class="sub">把每位应聘老师的简历粘贴或上传进来，按你设定的标准自动打分排序，每一分都能看到依据；试课和印象（含耐心）由你们打分（10 分制），总分按可调权重加权。数据只保存在你自己的浏览器里，不会上传。</p>
   </header>
 
   <section class="stats" id="stats" aria-label="统计"></section>
@@ -269,7 +270,7 @@ button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color
     <summary><h2>筛选标准</h2><span class="hint">调整总分构成、简历权重、科目、预算和红旗关键词，改动后自动重新打分</span></summary>
     <div class="card-body">
       <div class="field-row">
-        <label class="f">总分构成（试课/印象/耐心为 10 分制打分；没打分的项自动按剩余权重折算）</label>
+        <label class="f">总分构成（试课/印象为 10 分制打分；比例按占比折算，没打分的项自动折算给其他项）</label>
         <div class="weights" id="blend"></div>
       </div>
       <div class="field-row">
@@ -302,7 +303,7 @@ button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color
   </details>
 
   <section class="card">
-    <div class="card-head"><h2>添加候选人</h2><span class="hint">上传简历截图自动识别打分（或粘贴文字）；试课、印象、耐心都是 10 分制，点开候选人打分</span></div>
+    <div class="card-head"><h2>添加候选人</h2><span class="hint">上传简历截图自动识别打分（或粘贴文字）；试课和印象是 10 分制，点开候选人打分</span></div>
     <div class="card-body">
       <div class="grid2">
         <div class="field-row">
@@ -379,10 +380,10 @@ button[data-armed="1"] { background: var(--bad); border-color: var(--bad); color
 
 var STORE_KEY = "jiajiao-filter-v1";
 
-var SETTINGS_VERSION = 3;
+var SETTINGS_VERSION = 4;
 
 var DEFAULT_SETTINGS = {
-  blend: { trial: 40, impression: 30, resume: 20, patience: 10 },
+  blend: { trial: 40, impression: 30, resume: 20 },
   weights: { local: 35, subj: 25, edu: 20, exp: 10, price: 10 },
   subjects: "数学 物理 高中",
   budgetMin: 130,
@@ -393,7 +394,7 @@ var DEFAULT_SETTINGS = {
 
 var WEIGHT_LABELS = { local: "湖南·应届", subj: "科目匹配", edu: "学历成绩", exp: "教学经验", price: "价格匹配" };
 
-var BLEND_LABELS = { trial: "试课", impression: "印象", resume: "简历综合", patience: "耐心" };
+var BLEND_LABELS = { trial: "试课", impression: "印象", resume: "简历综合" };
 
 var STATUS_LABELS = { pending: "待筛", pass: "通过", hold: "待定", reject: "淘汰" };
 
@@ -426,12 +427,22 @@ function normalize(s) {
   if (!s || typeof s !== "object") {
     s = { settings: null, candidates: [], settingsVersion: SETTINGS_VERSION };
   }
-  if ((s.settingsVersion || 1) < SETTINGS_VERSION) {
-    // 维度有变化：套用新的默认标准，候选人数据保留；旧的 1-5 星换算成 10 分制
+  var fromVer = s.settingsVersion || 1;
+  if (fromVer < SETTINGS_VERSION) {
+    // 维度有变化：套用新的默认标准，候选人数据保留
     s.settings = null;
     (s.candidates || []).forEach(function (c) {
-      if (c.ratePatience) c.ratePatience = Math.min(10, c.ratePatience * 2);
-      if (c.rateImpression) c.rateImpression = Math.min(10, c.rateImpression * 2);
+      if (fromVer < 3) { // 旧的 1-5 星换算成 10 分制
+        if (c.ratePatience) c.ratePatience = Math.min(10, c.ratePatience * 2);
+        if (c.rateImpression) c.rateImpression = Math.min(10, c.rateImpression * 2);
+      }
+      // 耐心并入印象：都打过取平均，只打过一个取那一个
+      if (c.ratePatience) {
+        c.rateImpression = c.rateImpression
+          ? Math.round((c.rateImpression + c.ratePatience) / 2)
+          : c.ratePatience;
+        c.ratePatience = 0;
+      }
     });
     s.settingsVersion = SETTINGS_VERSION;
   }
@@ -440,7 +451,7 @@ function normalize(s) {
   s.settings.blend = Object.assign({}, DEFAULT_SETTINGS.blend, s.settings.blend || {});
   s.candidates = (s.candidates || []).map(function (c) {
     return Object.assign({
-      resumeImgs: [], ratePatience: 0, rateImpression: 0, trialScore: 0, wechat: ""
+      resumeImgs: [], rateImpression: 0, trialScore: 0, wechat: ""
     }, c);
   });
   return s;
@@ -749,14 +760,13 @@ function evaluate(cand, settings) {
   resumeTotal = Math.round(resumeTotal);
   if (flags.length) resumeTotal = Math.max(0, resumeTotal - 15 * flags.length);
 
-  // 总分 = 试课×40% + 印象×30% + 简历综合×20% + 耐心×10%（默认，可在设置里调）
+  // 总分 = 试课:印象:简历综合 按 40:30:20 加权（默认，可在设置里调）
   // 没打分的项不计入，权重按已打分的项折算
   var b = settings.blend;
   var parts = [
     { label: "试课", have: cand.trialScore > 0, val: cand.trialScore * 10, w: Number(b.trial) || 0 },
     { label: "印象", have: cand.rateImpression > 0, val: cand.rateImpression * 10, w: Number(b.impression) || 0 },
-    { label: "简历综合", have: true, val: resumeTotal, w: Number(b.resume) || 0 },
-    { label: "耐心", have: cand.ratePatience > 0, val: cand.ratePatience * 10, w: Number(b.patience) || 0 }
+    { label: "简历综合", have: true, val: resumeTotal, w: Number(b.resume) || 0 }
   ];
   var bSum = 0, acc = 0, formula = [], missing = [];
   parts.forEach(function (pt) {
@@ -774,7 +784,7 @@ function evaluate(cand, settings) {
   var total = Math.round(acc);
   var blendText = "总分 = " + formula.join(" + ") + " = " + total +
     (missing.length ? "（" + missing.join("、") + "还没打分，权重已折算给其他项）" : "");
-  if (cand.trialScore > 0 || cand.rateImpression > 0 || cand.ratePatience > 0) {
+  if (cand.trialScore > 0 || cand.rateImpression > 0) {
     ev.push({ dim: "trial", tag: "加权总分 " + total, snip: blendText, neg: false });
   }
 
@@ -836,15 +846,11 @@ function renderStats(results) {
 function chipRow(r) {
   var chips = [];
   var c = r.cand;
-  if (c.wechat) chips.push('<span class="chip">微信：' + esc(c.wechat) + "</span>");
   for (var t = 0; t < r.localTags.length; t++) chips.push('<span class="chip tier">' + esc(r.localTags[t]) + "</span>");
   if (r.tier) chips.push('<span class="chip tier">' + esc(r.tier) + "</span>");
   if (c.trialScore) chips.push('<span class="chip tier">试课 ' + c.trialScore + "/10</span>");
-  if (c.ratePatience || c.rateImpression) {
-    chips.push('<span class="chip">印象' + (c.rateImpression || "—") + " 耐心" + (c.ratePatience || "—") + "</span>");
-  } else {
-    chips.push('<span class="chip todo">待打分</span>');
-  }
+  if (c.rateImpression) chips.push('<span class="chip">印象 ' + c.rateImpression + "/10</span>");
+  else chips.push('<span class="chip todo">待打分</span>');
   if (r.years) chips.push('<span class="chip">' + r.years + "年经验</span>");
   if (r.rate) chips.push('<span class="chip">' + r.rate + " 元/时</span>");
   if (r.matched.length) chips.push('<span class="chip">' + esc(r.matched.join("·")) + "</span>");
@@ -890,10 +896,9 @@ function scoreRow(c, act, key, label) {
 }
 
 function ratingBlock(c, r) {
-  return '<div class="manual-block"><label class="f">你们的打分（都是满分 10 分，再点同一个数字可取消；总分权重可在「筛选标准」里调）</label>' +
+  return '<div class="manual-block"><label class="f">你们的打分（满分 10 分，再点同一个数字可取消；总分权重可在「筛选标准」里调）</label>' +
     scoreRow(c, "trial", "", "试课") +
-    scoreRow(c, "rate", "rateImpression", "印象（人怎么样）") +
-    scoreRow(c, "rate", "ratePatience", "耐心") +
+    scoreRow(c, "rate", "rateImpression", "印象（人怎么样、有没有耐心）") +
     '<p class="hint" style="margin:6px 0 0">' + r.blendText + "</p></div>";
 }
 
@@ -918,6 +923,7 @@ function renderList(results) {
       "<summary>" +
       '<span class="rank">' + (i + 1) + "</span>" +
       '<span class="who"><span class="name-line"><span class="name">' + esc(c.name) + '</span>' +
+      (c.wechat ? '<span class="wxname">微信名 ' + esc(c.wechat) + "</span>" : "") +
       '<span class="pill ' + c.status + '">' + STATUS_LABELS[c.status] + "</span></span>" +
       '<span class="chips">' + chipRow(r) + "</span></span>" +
       '<span class="scorebox"><span class="bar"><i class="' + g + '" style="width:' + r.total + '%"></i></span>' +
@@ -1089,6 +1095,30 @@ function cleanOcrText(t) {
     .trim();
 }
 
+/* 小图放大 2 倍再识别：微信截图里的灰色小字（微信名、时间）识别率明显更高 */
+function upscaleForOcr(file) {
+  return new Promise(function (resolve) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      var maxSide = Math.max(img.width, img.height);
+      var scale = maxSide < 1600 ? 2 : maxSide < 2400 ? 1.5 : 1;
+      if (scale === 1) { URL.revokeObjectURL(url); resolve(file); return; }
+      var cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      var ctx = cv.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL("image/png"));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 /* 逐张识别图片（File 对象或 dataURL 均可），statusCb 汇报进度，resolve 出识别文本数组 */
 function ocrImages(images, statusCb) {
   return getOcrWorker(statusCb).then(function (worker) {
@@ -1096,7 +1126,10 @@ function ocrImages(images, statusCb) {
     function next(i) {
       if (i >= images.length) return texts;
       statusCb("正在识别第 " + (i + 1) + "/" + images.length + " 张截图…");
-      return worker.recognize(images[i]).then(
+      var prep = (images[i] instanceof File || images[i] instanceof Blob)
+        ? upscaleForOcr(images[i])
+        : Promise.resolve(images[i]);
+      return prep.then(function (src) { return worker.recognize(src); }).then(
         function (res) { texts.push(cleanOcrText(res.data.text)); return next(i + 1); },
         function () { texts.push(""); return next(i + 1); }
       );
@@ -1236,16 +1269,29 @@ function extractWechat(resume) {
   if (m) return m[1];
   var counts = {};
   function tally(name) {
-    name = name.trim();
+    name = name.trim().replace(/[，。,.:：;；]+$/, "");
+    // 头像常被 OCR 误认成一两个汉字粘在名字前面（如「辆Gavin」）——英文名前的汉字前缀剥掉
+    var avatarNoise = name.match(/^[⺀-鿿]{1,2}([A-Za-z][A-Za-z0-9_\-]{1,19})$/);
+    if (avatarNoise) name = avatarNoise[1];
     if (!name || name.length > 20) return;
-    if (/(年|月|日|时间|经历|价格|收费|姓名|学历|科目|坐标|要求|辅导|备注|电话|地址)/.test(name)) return;
+    if (/^[\d\s:：.\-\/]+$/.test(name)) return; // 纯数字/时间不是名字
+    if (/(年|月|日|时间|经历|价格|收费|姓名|学历|科目|坐标|要求|辅导|备注|电话|地址|以下|转发|聊天记录)/.test(name)) return;
     counts[name] = (counts[name] || 0) + 1;
   }
-  // 2. 「Gavin 2026年7月5日 23:33」——截图提取文字/聊天记录里名字和时间同行（容忍 OCR 空格）
-  var re = /^\s*(.{1,20}?)\s+20\d{2}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/gm;
-  while ((m = re.exec(t)) !== null) tally(m[1]);
-  // 3. 名字单独一行、下一行是日期
-  var re2 = /^\s*(\S{1,20})\s*\n\s*20\d{2}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/gm;
+  // 2. 「Gavin 2026年7月5日 23:33」——微信截图里名字和时间同行。
+  //    OCR 常把日期认残（丢「日」、丢年份、只剩时间），所以从宽匹配几种形态
+  var datePatterns = [
+    /^\s*(.{1,20}?)\s+20\d{2}\s*年/gm,                    // 名字 + 年份
+    /^\s*(.{1,20}?)\s+\d{1,2}\s*月\s*\d{1,2}/gm,          // 名字 + 月日（无年份）
+    /^\s*(.{1,20}?)\s+\d{1,2}\s*[:：]\s*\d{2}\s*$/gm,     // 名字 + 时间（23:33）
+    /^\s*(.{1,20}?)\s+(?:昨天|前天|星期[一二三四五六日天]|周[一二三四五六日天])/gm // 名字 + 相对日期
+  ];
+  datePatterns.forEach(function (dp) {
+    var mm;
+    while ((mm = dp.exec(t)) !== null) tally(mm[1]);
+  });
+  // 3. 名字单独一行、下一行是日期/时间
+  var re2 = /^\s*(\S{1,20})\s*\n\s*(?:20\d{2}\s*年|\d{1,2}\s*月|\d{1,2}\s*[:：]\s*\d{2})/gm;
   while ((m = re2.exec(t)) !== null) tally(m[1]);
   var best = "", bestN = 0;
   for (var k in counts) { if (counts[k] > bestN) { best = k; bestN = counts[k]; } }
@@ -1264,7 +1310,6 @@ function addCandidate(name, resume, resumeImgs, ratings, wechat) {
     id: "c" + Date.now() + Math.random().toString(36).slice(2, 7),
     name: name, resume: resume, wechat: wechat || "",
     resumeImgs: resumeImgs || [],
-    ratePatience: (ratings && ratings.patience) || 0,
     rateImpression: (ratings && ratings.impression) || 0,
     trialScore: 0,
     status: "pending", notes: "", createdAt: new Date().toISOString()
@@ -1287,7 +1332,7 @@ function bindActions() {
     pendResumeImgs = [];
     renderPendThumbs();
     $("ocrMsg").textContent = "可多张，识别在本机完成，不用联网";
-    $("addMsg").textContent = "已添加「" + name + "」——看完微信聊天记得回来打印象/耐心分";
+    $("addMsg").textContent = "已添加「" + name + "」——看完微信聊天记得回来打印象分";
     save(); render();
   });
 
@@ -1426,10 +1471,10 @@ function bindActions() {
 
   $("exportCsv").addEventListener("click", function () {
     var results = compute();
-    var head = ["排名", "姓名", "微信名", "总分", "试课(10分)", "印象(10分)", "耐心(10分)", "简历综合", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "湖南应届分", "科目分", "学历分", "经验分", "价格分", "红旗", "备注"];
+    var head = ["排名", "姓名", "微信名", "总分", "试课(10分)", "印象(10分)", "简历综合", "状态", "湖南/应届", "院校层次", "经验年数", "报价(元/时)", "湖南应届分", "科目分", "学历分", "经验分", "价格分", "红旗", "备注"];
     var rows = results.map(function (r, i) {
       var c = r.cand;
-      return [i + 1, c.name, c.wechat || "", r.total, c.trialScore || "", c.rateImpression || "", c.ratePatience || "", r.resumeTotal, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
+      return [i + 1, c.name, c.wechat || "", r.total, c.trialScore || "", c.rateImpression || "", r.resumeTotal, STATUS_LABELS[c.status], r.localTags.join("、"), r.tier, r.years || "", r.rate || "",
         r.dims.local, r.dims.subj, r.dims.edu, r.dims.exp, r.dims.price,
         r.flags.join("、"), c.notes || ""];
     });
@@ -1469,20 +1514,20 @@ var DEMO = [
     name: "示例·陈同学",
     wechat: "Sunny陈",
     resume: "姓名：陈雨桐。长沙长郡中学2026届毕业生，刚参加完湖南高考，总分646分，数学138分，物理95分，已被武汉大学录取。选科物化生，暑假在长沙，可教高中数学物理，140元/小时。",
-    stars: { patience: 9, impression: 10 },
+    stars: { impression: 10 },
     trial: 9
   },
   {
     name: "示例·刘老师",
     wechat: "数学刘老师",
     resume: "湖南师范大学数学系硕士，4年家教经验，带过8名高中学生，提分明显，有教师资格证。主教高中数学，可加物理。150元/小时。",
-    stars: { patience: 8, impression: 8 },
+    stars: { impression: 8 },
     trial: 7
   },
   {
     name: "示例·赵同学",
     resume: "北京某高校大三在读，江苏高考，教过初中数学，时薪180元。",
-    stars: { patience: 4, impression: 5 }
+    stars: { impression: 5 }
   },
   {
     name: "示例·孙老师",
